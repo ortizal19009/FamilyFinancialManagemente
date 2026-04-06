@@ -1,0 +1,74 @@
+@use "sass:color";
+
+// Import Bootstrap Icons
+@use "bootstrap-icons/font/bootstrap-icons.css";
+
+// Import Bootstrap with variable overrides
+@use "bootstrap/scss/bootstrap" as * with (
+    $primary: #4B5320,
+    $secondary: #5D4037,
+    $success: #2E7D32,
+    $info: #0277BD,
+    $warning: #F9A825,
+    $danger: #C62828,
+    $light: #F5F5F5,
+    $dark: #212121,
+    $body-bg: #FFFFFF
+);
+
+// Global custom styles
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+// Sophisticated SM buttons and inputs
+.btn-sm, .form-control-sm, .form-select-sm {
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+.btn-primary {
+    background-color: $primary;
+    border-color: $primary;
+    &:hover {
+        background-color: color.adjust($primary, $lightness: -10%);
+        border-color: color.adjust($primary, $lightness: -10%);
+    }
+}
+
+.card {
+    border: none;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    border-radius: 8px;
+}
+
+.sidebar {
+    min-width: 250px;
+    max-width: 250px;
+    background: $primary;
+    color: white;
+    min-height: 100vh;
+    transition: all 0.3s;
+    
+    .nav-link {
+        color: rgba(255,255,255,0.8);
+        padding: 10px 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border-radius: 0;
+        
+        &:hover, &.active {
+            color: white;
+            background: rgba(255,255,255,0.1);
+            border-left: 4px solid $secondary;
+        }
+    }
+}
+
+.main-content {
+    width: 100%;
+    padding: 20px;
+    background-color: $light;
+}

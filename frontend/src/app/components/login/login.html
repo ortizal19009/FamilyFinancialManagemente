@@ -1,0 +1,88 @@
+<div class="container-fluid p-0 vh-100 overflow-hidden">
+  <div class="row g-0 h-100">
+    <!-- Form Side -->
+    <div class="col-lg-5 d-flex align-items-center justify-content-center bg-white p-5">
+      <div class="auth-form-container w-100" style="max-width: 400px;">
+        <div class="text-center mb-5">
+          <i class="bi bi-shield-lock-fill text-primary display-4 mb-3 d-block"></i>
+          <h2 class="fw-bold text-dark">¡Bienvenido!</h2>
+          <p class="text-muted small">Gestiona las finanzas de tu familia de forma profesional</p>
+        </div>
+
+        <form (ngSubmit)="onSubmit()" #loginForm="ngForm">
+          <div class="mb-3">
+            <label class="form-label small fw-bold text-muted">Correo Electrónico</label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text bg-light border-end-0"><i class="bi bi-envelope text-muted"></i></span>
+              <input type="email" name="email" class="form-control form-control-sm border-start-0 bg-light" 
+                     placeholder="ejemplo@correo.com" [(ngModel)]="credentials.email" required>
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <label class="form-label small fw-bold text-muted mb-0">Contraseña</label>
+              <a href="#" class="text-primary small text-decoration-none fw-semibold">¿Olvidaste tu contraseña?</a>
+            </div>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text bg-light border-end-0"><i class="bi bi-lock text-muted"></i></span>
+              <input type="password" name="password" class="form-control form-control-sm border-start-0 bg-light" 
+                     placeholder="••••••••" [(ngModel)]="credentials.password" required>
+            </div>
+          </div>
+
+          <div *ngIf="errorMsg" class="alert alert-danger py-2 small mb-4">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ errorMsg }}
+          </div>
+
+          <button type="submit" class="btn btn-sm btn-primary w-100 py-2 shadow-sm mb-4" [disabled]="!loginForm.valid">
+            Iniciar Sesión <i class="bi bi-arrow-right ms-2"></i>
+          </button>
+
+          <div class="text-center">
+            <p class="small text-muted mb-0">¿No tienes una cuenta? 
+              <a routerLink="/register" class="text-secondary fw-bold text-decoration-none">Regístrate aquí</a>
+            </p>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Carousel Side -->
+    <div class="col-lg-7 d-none d-lg-block p-0 position-relative">
+      <div id="familyCarousel" class="carousel slide carousel-fade h-100" data-bs-ride="carousel">
+        <div class="carousel-indicators">
+          <button type="button" data-bs-target="#familyCarousel" data-bs-slide-to="0" class="active"></button>
+          <button type="button" data-bs-target="#familyCarousel" data-bs-slide-to="1"></button>
+          <button type="button" data-bs-target="#familyCarousel" data-bs-slide-to="2"></button>
+        </div>
+        <div class="carousel-inner h-100">
+          <div class="carousel-item active h-100">
+            <div class="overlay"></div>
+            <img src="https://images.unsplash.com/photo-1511895426328-dc8714191300?auto=format&fit=crop&q=80&w=1200" class="d-block w-100 h-100 object-fit-cover" alt="Familia 1">
+            <div class="carousel-caption d-none d-md-block mb-5">
+              <h3 class="fw-bold">Momentos Inolvidables</h3>
+              <p>Planifica tus ahorros para esas vacaciones soñadas.</p>
+            </div>
+          </div>
+          <div class="carousel-item h-100">
+            <div class="overlay"></div>
+            <img src="https://images.unsplash.com/photo-1491438590914-bc09fcaaf77a?auto=format&fit=crop&q=80&w=1200" class="d-block w-100 h-100 object-fit-cover" alt="Familia 2">
+            <div class="carousel-caption d-none d-md-block mb-5">
+              <h3 class="fw-bold">Seguridad Familiar</h3>
+              <p>Lleva el control total de tus deudas y gastos diarios.</p>
+            </div>
+          </div>
+          <div class="carousel-item h-100">
+            <div class="overlay"></div>
+            <img src="https://images.unsplash.com/photo-1536640712-4d4c36ff0e4e?auto=format&fit=crop&q=80&w=1200" class="d-block w-100 h-100 object-fit-cover" alt="Familia 3">
+            <div class="carousel-caption d-none d-md-block mb-5">
+              <h3 class="fw-bold">Crecimiento Juntos</h3>
+              <p>Monitorea tu patrimonio y bienes para un mejor futuro.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

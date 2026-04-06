@@ -1,0 +1,238 @@
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold mb-0 text-dark">Gastos Diarios</h4>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item small"><a routerLink="/dashboard" class="text-decoration-none text-muted">Dashboard</a></li>
+        <li class="breadcrumb-item small active" aria-current="page">Gastos</li>
+      </ol>
+    </nav>
+  </div>
+
+  <div class="row g-4">
+    <!-- Form Side -->
+    <div class="col-lg-4">
+      <div class="card border-0 shadow-sm sticky-top" style="top: 20px; z-index: 10;">
+        <div class="card-header bg-white py-3 border-0">
+          <h6 class="mb-0 fw-bold text-secondary">Registrar Nuevo Gasto</h6>
+        </div>
+        <div class="card-body p-4">
+          <form (ngSubmit)="onSubmit()" #expenseForm="ngForm">
+            <div class="mb-3">
+              <label class="form-label small fw-bold text-muted">Descripción</label>
+              <input type="text" name="description" class="form-control form-control-sm bg-light" 
+                     placeholder="Ej: Compras supermercado" [(ngModel)]="newExpense.description" required>
+            </div>
+
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label class="form-label small fw-bold text-muted">Total del Gasto</label>
+                <div class="expense-total-box">
+                  {{ getExpenseTotal() | currency }}
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small fw-bold text-muted">Fecha</label>
+                <input type="date" name="expense_date" class="form-control form-control-sm bg-light" 
+                       [(ngModel)]="newExpense.expense_date" required>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <label class="form-label small fw-bold text-muted mb-0">Desglose por Categorías</label>
+                <button type="button" class="btn btn-outline-primary btn-sm" (click)="addExpenseItem()">
+                  <i class="bi bi-plus-lg me-1"></i> Agregar rubro
+                </button>
+              </div>
+
+              <div class="expense-item-card" *ngFor="let item of newExpense.items; let i = index">
+                <div class="row g-2 align-items-end">
+                  <div class="col-7">
+                    <label class="form-label small text-muted">Categoría</label>
+                    <select [name]="'category_id_' + i" class="form-select form-select-sm bg-light" [(ngModel)]="item.category_id" required>
+                      <option [ngValue]="null" disabled>Seleccionar categoría</option>
+                      <option *ngFor="let cat of categories" [value]="cat.id">{{ cat.name }}</option>
+                    </select>
+                  </div>
+                  <div class="col-4">
+                    <label class="form-label small text-muted">Monto</label>
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text bg-light border-end-0 text-muted">$</span>
+                      <input type="number" [name]="'amount_' + i" class="form-control bg-light border-start-0"
+                             placeholder="0.00" [(ngModel)]="item.amount" min="0.01" step="0.01" required>
+                    </div>
+                  </div>
+                  <div class="col-1 d-flex justify-content-end">
+                    <button type="button" class="btn btn-outline-danger btn-sm" (click)="removeExpenseItem(i)" [disabled]="newExpense.items.length === 1">
+                      <i class="bi bi-x-lg"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div *ngIf="hasDuplicateCategories()" class="alert alert-warning py-2 small mt-3 mb-0">
+                Hay categorías repetidas en el desglose. Si quieres, puedes consolidarlas en una sola línea.
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label small fw-bold text-muted">Método de Pago</label>
+              <select name="payment_method" class="form-select form-select-sm bg-light" [(ngModel)]="newExpense.payment_method" required>
+                <option value="Efectivo">Efectivo</option>
+                <option value="Tarjeta Crédito">Tarjeta de Crédito</option>
+                <option value="Tarjeta Débito">Tarjeta de Débito</option>
+                <option value="Banca Móvil">Banca Móvil</option>
+                <option value="Fiado">Fiado</option>
+              </select>
+            </div>
+
+            <!-- Optional: Card Selection if Credit/Debit Card -->
+            <div class="mb-3" *ngIf="newExpense.payment_method === 'Tarjeta Crédito'">
+              <label class="form-label small fw-bold text-muted">Seleccionar Tarjeta</label>
+              <select name="card_id" class="form-select form-select-sm bg-light" [(ngModel)]="newExpense.card_id">
+                <option [ngValue]="null">Seleccionar tarjeta</option>
+                <option *ngFor="let card of cards" [value]="card.id">{{ card.card_name }} ({{ card.last_four_digits }})</option>
+              </select>
+            </div>
+
+            <div class="mb-3" *ngIf="newExpense.payment_method === 'Tarjeta Débito' || newExpense.payment_method === 'Banca Móvil'">
+              <label class="form-label small fw-bold text-muted">Seleccionar Cuenta</label>
+              <select name="bank_account_id" class="form-select form-select-sm bg-light" [(ngModel)]="newExpense.bank_account_id">
+                <option [ngValue]="null">Seleccionar cuenta</option>
+                <option *ngFor="let acc of accounts" [value]="acc.id">{{ acc.bank_name }} - {{ acc.account_number }}</option>
+              </select>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label small fw-bold text-muted">Comprobante o Factura</label>
+              <input type="file" class="form-control form-control-sm bg-light"
+                     accept=".pdf,image/*" (change)="onReceiptSelected($event)">
+              <div class="small text-muted mt-1">
+                Puedes adjuntar PDF, JPG, PNG, JPEG o WEBP.
+              </div>
+              <div *ngIf="selectedReceipt" class="receipt-chip mt-2">
+                <span class="text-truncate">{{ selectedReceipt.name }}</span>
+                <button type="button" class="btn btn-link btn-sm p-0 text-danger text-decoration-none" (click)="clearReceipt()">
+                  Quitar
+                </button>
+              </div>
+              <button *ngIf="selectedReceipt" type="button" class="btn btn-outline-primary btn-sm mt-3" (click)="analyzeReceipt()" [disabled]="analyzingReceipt">
+                <span *ngIf="!analyzingReceipt"><i class="bi bi-search me-1"></i> Analizar comprobante</span>
+                <span *ngIf="analyzingReceipt" class="spinner-border spinner-border-sm me-2"></span>
+              </button>
+            </div>
+
+            <div *ngIf="receiptAnalysis" class="alert alert-info small">
+              <div class="fw-bold mb-2">Sugerencia detectada</div>
+              <div><strong>Descripción:</strong> {{ receiptAnalysis.description || 'No detectada' }}</div>
+              <div><strong>Fecha:</strong> {{ receiptAnalysis.expense_date || 'No detectada' }}</div>
+              <div><strong>Total:</strong> {{ receiptAnalysis.total_amount ? (receiptAnalysis.total_amount | currency) : 'No detectado' }}</div>
+              <div *ngIf="receiptAnalysis.items?.length" class="mt-2">
+                <strong>Categorías sugeridas:</strong>
+                <div class="mt-1" *ngFor="let item of receiptAnalysis.items">
+                  {{ item.category_name }} - {{ item.amount | currency }}
+                </div>
+              </div>
+              <div class="d-flex gap-2 mt-3">
+                <button type="button" class="btn btn-primary btn-sm" (click)="applyReceiptAnalysis()">Aplicar al formulario</button>
+              </div>
+            </div>
+
+            <div *ngIf="successMsg" class="alert alert-success py-2 small mb-3">
+              <i class="bi bi-check-circle-fill me-2"></i> {{ successMsg }}
+            </div>
+            <div *ngIf="errorMsg" class="alert alert-danger py-2 small mb-3">
+              <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ errorMsg }}
+            </div>
+
+            <button type="submit" class="btn btn-sm btn-primary w-100 py-2 shadow-sm" [disabled]="!expenseForm.valid || loading || getExpenseTotal() <= 0">
+              <span *ngIf="!loading"><i class="bi bi-save me-2"></i> Registrar Gasto</span>
+              <span *ngIf="loading" class="spinner-border spinner-border-sm me-2"></span>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table Side -->
+    <div class="col-lg-8">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
+          <h6 class="mb-0 fw-bold text-secondary">Historial de Gastos</h6>
+          <div class="input-group input-group-sm w-auto">
+            <span class="input-group-text bg-light border-0"><i class="bi bi-search text-muted"></i></span>
+            <input type="text" class="form-control bg-light border-0" placeholder="Buscar gasto...">
+          </div>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" style="font-size: 0.85rem;">
+              <thead class="bg-light text-muted small text-uppercase fw-bold">
+                <tr>
+                  <th class="px-4 py-3 border-0">Fecha</th>
+                  <th class="py-3 border-0">Descripción / Integrante</th>
+                  <th class="py-3 border-0">Categoría</th>
+                  <th class="py-3 border-0 text-center">Método</th>
+                  <th class="py-3 border-0 text-center">Comprobante</th>
+                  <th class="text-end px-4 py-3 border-0">Monto</th>
+                </tr>
+              </thead>
+              <tbody class="border-top-0">
+                <tr *ngFor="let exp of expenses">
+                  <td class="px-4 text-muted">{{ exp.expense_date }}</td>
+                  <td>
+                    <div class="fw-bold text-dark">{{ exp.description }}</div>
+                    <div *ngIf="currentUser()?.role === 'admin'" class="small text-muted"><i class="bi bi-person me-1"></i> {{ exp.user_name }}</div>
+                    <div class="small text-muted d-lg-none">{{ exp.category_name }}</div>
+                    <div class="small text-muted mt-1" *ngIf="exp.items?.length > 1">
+                      <span *ngFor="let item of exp.items; let last = last">
+                        {{ item.category_name }}: {{ item.amount | currency }}<span *ngIf="!last"> · </span>
+                      </span>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill px-2 fw-normal">
+                      {{ exp.category_name }}
+                    </span>
+                    <div class="small text-muted mt-1" *ngIf="exp.categories_summary?.length > 1">
+                      {{ exp.categories_summary.join(', ') }}
+                    </div>
+                  </td>
+                  <td class="text-center">
+                    <span class="small text-muted px-2 py-1 bg-light rounded border">
+                      <i class="bi bi-wallet2 me-1" *ngIf="exp.payment_method === 'Efectivo'"></i>
+                      <i class="bi bi-credit-card me-1" *ngIf="exp.payment_method.includes('Tarjeta')"></i>
+                      <i class="bi bi-phone me-1" *ngIf="exp.payment_method === 'Banca Móvil'"></i>
+                      {{ exp.payment_method }}
+                    </span>
+                  </td>
+                  <td class="text-center">
+                    <button *ngIf="exp.receipt; else noReceiptTpl" type="button" class="btn btn-outline-secondary btn-sm" (click)="openReceipt(exp)">
+                      <i class="bi bi-paperclip me-1"></i> Ver
+                    </button>
+                    <ng-template #noReceiptTpl>
+                      <span class="small text-muted">Sin adjunto</span>
+                    </ng-template>
+                  </td>
+                  <td class="text-end px-4 fw-bold text-danger">
+                    -{{ (exp.total_amount ?? exp.amount) | currency }}
+                  </td>
+                </tr>
+                <tr *ngIf="expenses.length === 0">
+                  <td colspan="6" class="text-center py-5 text-muted">
+                    <i class="bi bi-inbox display-4 d-block mb-3 opacity-25"></i>
+                    No se encontraron gastos registrados
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card-footer bg-white border-0 py-3 text-center" *ngIf="expenses.length > 0">
+          <button class="btn btn-sm btn-light border small">Cargar más registros</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,73 @@
+<div class="container-fluid p-0 vh-100 overflow-hidden">
+  <div class="row g-0 h-100">
+    <!-- Form Side -->
+    <div class="col-lg-5 d-flex align-items-center justify-content-center bg-white p-5">
+      <div class="auth-form-container w-100" style="max-width: 400px;">
+        <div class="text-center mb-4">
+          <i class="bi bi-person-plus-fill text-primary display-4 mb-2 d-block"></i>
+          <h2 class="fw-bold text-dark">Crear Cuenta</h2>
+          <p class="text-muted small">Únete a la gestión financiera de tu familia</p>
+        </div>
+
+        <form (ngSubmit)="onSubmit()" #registerForm="ngForm">
+          <div class="mb-3">
+            <label class="form-label small fw-bold text-muted">Nombre Completo</label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text bg-light border-end-0"><i class="bi bi-person text-muted"></i></span>
+              <input type="text" name="full_name" class="form-control form-control-sm border-start-0 bg-light" 
+                     placeholder="Ej: Alexis Ortiz" [(ngModel)]="userData.full_name" required>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-bold text-muted">Correo Electrónico</label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text bg-light border-end-0"><i class="bi bi-envelope text-muted"></i></span>
+              <input type="email" name="email" class="form-control form-control-sm border-start-0 bg-light" 
+                     placeholder="ejemplo@correo.com" [(ngModel)]="userData.email" required>
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label small fw-bold text-muted">Contraseña</label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text bg-light border-end-0"><i class="bi bi-lock text-muted"></i></span>
+              <input type="password" name="password" class="form-control form-control-sm border-start-0 bg-light" 
+                     placeholder="••••••••" [(ngModel)]="userData.password" required minlength="6">
+            </div>
+          </div>
+
+          <div *ngIf="errorMsg" class="alert alert-danger py-2 small mb-4">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ errorMsg }}
+          </div>
+
+          <button type="submit" class="btn btn-sm btn-primary w-100 py-2 shadow-sm mb-4" [disabled]="!registerForm.valid">
+            Registrarse <i class="bi bi-check-lg ms-2"></i>
+          </button>
+
+          <div class="text-center">
+            <p class="small text-muted mb-0">¿Ya tienes una cuenta? 
+              <a routerLink="/login" class="text-secondary fw-bold text-decoration-none">Inicia sesión aquí</a>
+            </p>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Carousel Side (Same as Login) -->
+    <div class="col-lg-7 d-none d-lg-block p-0 position-relative">
+      <div id="familyCarousel" class="carousel slide carousel-fade h-100" data-bs-ride="carousel">
+        <div class="carousel-inner h-100">
+          <div class="carousel-item active h-100">
+            <div class="overlay"></div>
+            <img src="https://images.unsplash.com/photo-1511895426328-dc8714191300?auto=format&fit=crop&q=80&w=1200" class="d-block w-100 h-100 object-fit-cover" alt="Familia 1">
+            <div class="carousel-caption d-none d-md-block mb-5">
+              <h3 class="fw-bold">Gestión Colaborativa</h3>
+              <p>Cada miembro puede registrar sus propios gastos diarios.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

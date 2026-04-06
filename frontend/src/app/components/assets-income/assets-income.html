@@ -1,0 +1,196 @@
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold mb-0 text-dark">Bienes e Ingresos</h4>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item small"><a routerLink="/dashboard" class="text-decoration-none text-muted">Dashboard</a></li>
+        <li class="breadcrumb-item small active" aria-current="page">Patrimonio</li>
+      </ol>
+    </nav>
+  </div>
+
+  <div *ngIf="successMsg" class="alert alert-success py-2 small mb-3">
+    <i class="bi bi-check-circle-fill me-2"></i> {{ successMsg }}
+  </div>
+  <div *ngIf="errorMsg" class="alert alert-danger py-2 small mb-3">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ errorMsg }}
+  </div>
+
+  <!-- Tabs -->
+  <ul class="nav nav-pills mb-4 gap-2" id="assets-income-tab" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="btn btn-sm btn-outline-primary active px-4" id="pills-assets-tab" data-bs-toggle="pill" data-bs-target="#pills-assets" type="button" role="tab">
+        <i class="bi bi-box-seam me-2"></i> Inventario de Bienes
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="btn btn-sm btn-outline-primary px-4" id="pills-income-tab" data-bs-toggle="pill" data-bs-target="#pills-income" type="button" role="tab">
+        <i class="bi bi-cash-stack me-2"></i> Registro de Ingresos
+      </button>
+    </li>
+  </ul>
+
+  <div class="tab-content">
+    <!-- --- ASSETS SECTION --- -->
+    <div class="tab-pane fade show active" id="pills-assets" role="tabpanel">
+      <div class="row g-4">
+        <div class="col-lg-4">
+          <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3 border-0">
+              <h6 class="mb-0 fw-bold text-secondary">Registrar Nuevo Bien</h6>
+            </div>
+            <div class="card-body p-4">
+              <form (ngSubmit)="onCreateAsset()" #assetForm="ngForm">
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-muted">Nombre del Bien</label>
+                  <input type="text" name="name" class="form-control form-control-sm bg-light" 
+                         placeholder="Ej: Vehículo, Casa, Laptop" [(ngModel)]="newAsset.name" required>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-muted">Pertenece a (Titular)</label>
+                  <select name="asset_owner" class="form-select form-select-sm bg-light" [(ngModel)]="newAsset.owner" required>
+                    <option value="" disabled>Seleccionar integrante</option>
+                    <option *ngFor="let member of familyMembers" [value]="member.name">{{ member.name }} ({{ member.relationship }})</option>
+                  </select>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-muted">Valor Estimado</label>
+                  <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-light">$</span>
+                    <input type="number" name="value" class="form-control bg-light" [(ngModel)]="newAsset.value" required>
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-muted">Fecha de Adquisición</label>
+                  <input type="date" name="purchase_date" class="form-control form-control-sm bg-light" [(ngModel)]="newAsset.purchase_date">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-muted">Descripción</label>
+                  <textarea name="description" class="form-control form-control-sm bg-light" [(ngModel)]="newAsset.description"></textarea>
+                </div>
+                <button type="submit" class="btn btn-sm btn-primary w-100 py-2 shadow-sm mt-2" [disabled]="!assetForm.valid || loadingAsset">
+                  <span *ngIf="!loadingAsset"><i class="bi bi-plus-lg me-2"></i> Agregar al Inventario</span>
+                  <span *ngIf="loadingAsset" class="spinner-border spinner-border-sm"></span>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-8">
+          <div class="card border-0 shadow-sm mb-4 bg-primary text-white">
+            <div class="card-body p-4 d-flex justify-content-between align-items-center">
+              <div>
+                <div class="small text-white-50 text-uppercase fw-bold mb-1">Valor Total del Patrimonio</div>
+                <h2 class="fw-bold mb-0">{{ getTotalAssetsValue() | currency }}</h2>
+              </div>
+              <i class="bi bi-bank display-4 opacity-25"></i>
+            </div>
+          </div>
+
+          <div class="card border-0 shadow-sm">
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" style="font-size: 0.85rem;">
+                  <thead class="bg-light text-muted small text-uppercase fw-bold">
+                    <tr>
+                      <th class="px-4 py-3 border-0">Nombre del Bien</th>
+                      <th class="py-3 border-0">Adquisición</th>
+                      <th class="py-3 border-0">Descripción</th>
+                      <th class="text-end px-4 py-3 border-0">Valor</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let asset of assets">
+                      <td class="px-4 fw-bold text-dark">{{ asset.name }}</td>
+                      <td class="text-muted">{{ asset.purchase_date || 'N/A' }}</td>
+                      <td class="text-muted small">{{ asset.description }}</td>
+                      <td class="text-end px-4 fw-bold text-primary">{{ asset.value | currency }}</td>
+                    </tr>
+                    <tr *ngIf="assets.length === 0">
+                      <td colspan="4" class="text-center py-5 text-muted">No hay bienes registrados en el inventario</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- --- INCOME SECTION --- -->
+    <div class="tab-pane fade" id="pills-income" role="tabpanel">
+      <div class="row g-4">
+        <div class="col-lg-4">
+          <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3 border-0">
+              <h6 class="mb-0 fw-bold text-secondary">Registrar Nuevo Ingreso</h6>
+            </div>
+            <div class="card-body p-4">
+              <form (ngSubmit)="onCreateIncome()" #incomeForm="ngForm">
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-muted">Fuente / Origen</label>
+                  <input type="text" name="source" class="form-control form-control-sm bg-light" 
+                         placeholder="Ej: Sueldo, Venta, Bono" [(ngModel)]="newIncome.source" required>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-muted">Monto</label>
+                  <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-light">$</span>
+                    <input type="number" name="amount" class="form-control bg-light" [(ngModel)]="newIncome.amount" required>
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-muted">Fecha</label>
+                  <input type="date" name="income_date" class="form-control form-control-sm bg-light" [(ngModel)]="newIncome.income_date" required>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-muted">Descripción</label>
+                  <textarea name="income_desc" class="form-control form-control-sm bg-light" [(ngModel)]="newIncome.description"></textarea>
+                </div>
+                <button type="submit" class="btn btn-sm btn-primary w-100 py-2 shadow-sm mt-2" [disabled]="!incomeForm.valid || loadingIncome">
+                  <span *ngIf="!loadingIncome"><i class="bi bi-cash-stack me-2"></i> Guardar Ingreso</span>
+                  <span *ngIf="loadingIncome" class="spinner-border spinner-border-sm"></span>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-8">
+          <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3 border-0">
+              <h6 class="mb-0 fw-bold text-secondary">Historial de Ingresos</h6>
+            </div>
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" style="font-size: 0.85rem;">
+                  <thead class="bg-light text-muted small text-uppercase fw-bold">
+                    <tr>
+                      <th class="px-4 py-3 border-0">Fecha</th>
+                      <th class="py-3 border-0">Fuente</th>
+                      <th class="py-3 border-0">Registrado por</th>
+                      <th class="text-end px-4 py-3 border-0">Monto</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let income of incomeRecords">
+                      <td class="px-4 text-muted">{{ income.income_date }}</td>
+                      <td class="fw-bold text-dark">{{ income.source }}</td>
+                      <td class="text-muted">{{ income.user_name }}</td>
+                      <td class="text-end px-4 fw-bold text-success">+{{ income.amount | currency }}</td>
+                    </tr>
+                    <tr *ngIf="incomeRecords.length === 0">
+                      <td colspan="4" class="text-center py-5 text-muted">No se han registrado ingresos aún</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

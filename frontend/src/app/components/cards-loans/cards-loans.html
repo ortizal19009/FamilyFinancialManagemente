@@ -1,0 +1,260 @@
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold mb-0 text-dark">Tarjetas y Préstamos</h4>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item small"><a routerLink="/dashboard" class="text-decoration-none text-muted">Dashboard</a></li>
+        <li class="breadcrumb-item small active" aria-current="page">Deudas</li>
+      </ol>
+    </nav>
+  </div>
+
+  <div *ngIf="successMsg" class="alert alert-success py-2 small mb-3">
+    <i class="bi bi-check-circle-fill me-2"></i> {{ successMsg }}
+  </div>
+  <div *ngIf="errorMsg" class="alert alert-danger py-2 small mb-3">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ errorMsg }}
+  </div>
+
+  <!-- Tabs for Mobile/Organization -->
+  <ul class="nav nav-pills mb-4 gap-2" id="pills-tab" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="btn btn-sm btn-outline-primary active px-4" id="pills-cards-tab" data-bs-toggle="pill" data-bs-target="#pills-cards" type="button" role="tab">
+        <i class="bi bi-credit-card me-2"></i> Tarjetas
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="btn btn-sm btn-outline-primary px-4" id="pills-loans-tab" data-bs-toggle="pill" data-bs-target="#pills-loans" type="button" role="tab">
+        <i class="bi bi-file-earmark-medical me-2"></i> Préstamos
+      </button>
+    </li>
+  </ul>
+
+  <div class="tab-content" id="pills-tabContent">
+    <!-- --- TARJETAS SECTION --- -->
+    <div class="tab-pane fade show active" id="pills-cards" role="tabpanel">
+      <div class="row g-4">
+        <div class="col-lg-4">
+          <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3 border-0">
+              <h6 class="mb-0 fw-bold text-secondary">Registrar Nueva Tarjeta</h6>
+            </div>
+            <div class="card-body p-4">
+              <form (ngSubmit)="onCreateCard()" #cardForm="ngForm">
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-muted">Banco Emisor</label>
+                  <select name="bank_id" class="form-select form-select-sm bg-light" [(ngModel)]="newCard.bank_id" required>
+                    <option [ngValue]="null" disabled>Seleccionar banco</option>
+                    <option *ngFor="let bank of banks" [value]="bank.id">{{ bank.name }}</option>
+                  </select>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-muted">Nombre de la Tarjeta</label>
+                  <input type="text" name="card_name" class="form-control form-control-sm bg-light" 
+                         placeholder="Ej: Visa Oro" [(ngModel)]="newCard.card_name" required>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-muted">Pertenece a (Titular)</label>
+                  <select name="card_owner" class="form-select form-select-sm bg-light" [(ngModel)]="newCard.owner" required>
+                    <option value="" disabled>Seleccionar integrante</option>
+                    <option *ngFor="let member of familyMembers" [value]="member.name">{{ member.name }} ({{ member.relationship }})</option>
+                  </select>
+                </div>
+                <div class="row g-3 mb-3">
+                  <div class="col-md-6">
+                    <label class="form-label small fw-bold text-muted">Últimos 4 Dígitos</label>
+                    <input type="text" name="last_four" class="form-control form-control-sm bg-light" 
+                           placeholder="1234" maxlength="4" [(ngModel)]="newCard.last_four_digits">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small fw-bold text-muted">Tipo</label>
+                    <select name="card_type" class="form-select form-select-sm bg-light" [(ngModel)]="newCard.card_type">
+                      <option value="Débito">Débito</option>
+                      <option value="Crédito">Crédito</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div *ngIf="newCard.card_type === 'Crédito'">
+                  <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted">Cupo / Límite</label>
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text bg-light">$</span>
+                      <input type="number" name="limit" class="form-control bg-light" [(ngModel)]="newCard.credit_limit">
+                    </div>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted">Deuda Actual</label>
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text bg-light">$</span>
+                      <input type="number" name="debt" class="form-control bg-light" [(ngModel)]="newCard.current_debt">
+                    </div>
+                  </div>
+                </div>
+
+                <button type="submit" class="btn btn-sm btn-primary w-100 py-2 shadow-sm mt-3" [disabled]="!cardForm.valid || loadingCard">
+                  <span *ngIf="!loadingCard"><i class="bi bi-plus-lg me-2"></i> Agregar Tarjeta</span>
+                  <span *ngIf="loadingCard" class="spinner-border spinner-border-sm me-2"></span>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-8">
+          <div class="row g-3">
+            <div class="col-md-6" *ngFor="let card of cards">
+              <div class="card border-0 shadow-sm" [ngClass]="{'border-start border-primary border-4': card.card_type === 'Débito', 'border-start border-danger border-4': card.card_type === 'Crédito'}">
+                <div class="card-body p-4">
+                  <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                      <h6 class="fw-bold mb-0 text-dark">{{ card.card_name }}</h6>
+                      <small class="text-muted">{{ card.bank_name }} • **** {{ card.last_four_digits }}</small>
+                      <div class="small text-muted mt-1"><i class="bi bi-person me-1"></i> {{ card.owner || 'N/A' }}</div>
+                    </div>
+                    <span class="badge" [ngClass]="card.card_type === 'Crédito' ? 'bg-danger bg-opacity-10 text-danger' : 'bg-primary bg-opacity-10 text-primary'">
+                      {{ card.card_type }}
+                    </span>
+                  </div>
+                  
+                  <div class="row mt-4" *ngIf="card.card_type === 'Crédito'">
+                    <div class="col-6">
+                      <div class="small text-muted text-uppercase fw-bold" style="font-size: 0.65rem;">Deuda</div>
+                      <div class="fw-bold text-danger">{{ card.current_debt | currency }}</div>
+                    </div>
+                    <div class="col-6 text-end">
+                      <div class="small text-muted text-uppercase fw-bold" style="font-size: 0.65rem;">Disponible</div>
+                      <div class="fw-bold text-success">{{ (card.credit_limit - card.current_debt) | currency }}</div>
+                    </div>
+                    <div class="col-12 mt-2">
+                      <div class="progress" style="height: 4px;">
+                        <div class="progress-bar bg-danger" role="progressbar" [style.width.%]="(card.current_debt / card.credit_limit) * 100"></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="mt-4" *ngIf="card.card_type === 'Débito'">
+                    <div class="small text-muted text-uppercase fw-bold" style="font-size: 0.65rem;">Saldo en Cuenta</div>
+                    <div class="h5 fw-bold text-primary mb-0">{{ card.available_balance | currency }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-12 text-center py-5 text-muted" *ngIf="cards.length === 0">
+              No hay tarjetas registradas
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- --- PRÉSTAMOS SECTION --- -->
+    <div class="tab-pane fade" id="pills-loans" role="tabpanel">
+      <div class="row g-4">
+        <div class="col-lg-4">
+          <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3 border-0">
+              <h6 class="mb-0 fw-bold text-secondary">Nuevo Préstamo</h6>
+            </div>
+            <div class="card-body p-4">
+              <form (ngSubmit)="onCreateLoan()" #loanForm="ngForm">
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-muted">Descripción</label>
+                  <input type="text" name="loan_desc" class="form-control form-control-sm bg-light" 
+                         placeholder="Ej: Crédito Hipotecario" [(ngModel)]="newLoan.description" required>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-muted">Titular del Préstamo</label>
+                  <select name="loan_owner" class="form-select form-select-sm bg-light" [(ngModel)]="newLoan.owner" required>
+                    <option value="" disabled>Seleccionar integrante</option>
+                    <option *ngFor="let member of familyMembers" [value]="member.name">{{ member.name }} ({{ member.relationship }})</option>
+                  </select>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-muted">Banco</label>
+                  <select name="loan_bank" class="form-select form-select-sm bg-light" [(ngModel)]="newLoan.bank_id">
+                    <option [ngValue]="null">Seleccionar banco</option>
+                    <option *ngFor="let bank of banks" [value]="bank.id">{{ bank.name }}</option>
+                  </select>
+                </div>
+                <div class="row g-3 mb-3">
+                  <div class="col-md-6">
+                    <label class="form-label small fw-bold text-muted">Monto Inicial</label>
+                    <input type="number" name="init_amt" class="form-control form-control-sm bg-light" [(ngModel)]="newLoan.initial_amount" required>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small fw-bold text-muted">Cuota Mensual</label>
+                    <input type="number" name="monthly" class="form-control form-control-sm bg-light" [(ngModel)]="newLoan.monthly_payment" required>
+                  </div>
+                </div>
+                <div class="row g-3 mb-3">
+                  <div class="col-md-6">
+                    <label class="form-label small fw-bold text-muted">Cuotas Totales</label>
+                    <input type="number" name="total_inst" class="form-control form-control-sm bg-light" [(ngModel)]="newLoan.total_installments" required>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small fw-bold text-muted">Cuotas Pendientes</label>
+                    <input type="number" name="pend_inst" class="form-control form-control-sm bg-light" [(ngModel)]="newLoan.pending_installments" required>
+                  </div>
+                </div>
+                <button type="submit" class="btn btn-sm btn-primary w-100 py-2 shadow-sm" [disabled]="!loanForm.valid || loadingLoan">
+                  <span *ngIf="!loadingLoan"><i class="bi bi-plus-lg me-2"></i> Registrar Préstamo</span>
+                  <span *ngIf="loadingLoan" class="spinner-border spinner-border-sm me-2"></span>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-8">
+          <div class="card border-0 shadow-sm">
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" style="font-size: 0.85rem;">
+                  <thead class="bg-light text-muted small text-uppercase fw-bold">
+                    <tr>
+                      <th class="px-4 py-3 border-0">Descripción / Titular</th>
+                      <th class="py-3 border-0">Banco</th>
+                      <th class="py-3 border-0">Progreso Pago</th>
+                      <th class="py-3 border-0 text-center">Cuotas</th>
+                      <th class="text-end px-4 py-3 border-0">Mensualidad</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let loan of loans">
+                      <td class="px-4">
+                        <div class="fw-bold text-dark">{{ loan.description }}</div>
+                        <div class="small text-muted"><i class="bi bi-person me-1"></i> {{ loan.owner || 'N/A' }}</div>
+                        <div class="small text-muted">Total: {{ loan.initial_amount | currency }}</div>
+                      </td>
+                      <td class="text-muted">{{ loan.bank_name || 'N/A' }}</td>
+                      <td style="width: 200px;">
+                        <div class="d-flex align-items-center gap-2">
+                          <div class="progress flex-grow-1" style="height: 6px;">
+                            <div class="progress-bar bg-success" role="progressbar" [style.width.%]="((loan.total_installments - loan.pending_installments) / loan.total_installments) * 100"></div>
+                          </div>
+                          <span class="small fw-bold">{{ (((loan.total_installments - loan.pending_installments) / loan.total_installments) * 100) | number:'1.0-0' }}%</span>
+                        </div>
+                      </td>
+                      <td class="text-center">
+                        <span class="badge bg-secondary bg-opacity-10 text-secondary px-2">
+                          {{ loan.total_installments - loan.pending_installments }} / {{ loan.total_installments }}
+                        </span>
+                      </td>
+                      <td class="text-end px-4 fw-bold text-danger">
+                        {{ loan.monthly_payment | currency }}
+                      </td>
+                    </tr>
+                    <tr *ngIf="loans.length === 0">
+                      <td colspan="5" class="text-center py-5 text-muted">No hay préstamos registrados</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

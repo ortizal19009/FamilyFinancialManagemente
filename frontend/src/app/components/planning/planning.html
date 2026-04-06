@@ -1,0 +1,130 @@
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold mb-0 text-dark">Planificación Mensual</h4>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item small"><a routerLink="/dashboard" class="text-decoration-none text-muted">Dashboard</a></li>
+        <li class="breadcrumb-item small active" aria-current="page">Planificación</li>
+      </ol>
+    </nav>
+  </div>
+
+  <div *ngIf="successMsg" class="alert alert-success py-2 small mb-3">
+    <i class="bi bi-check-circle-fill me-2"></i> {{ successMsg }}
+  </div>
+  <div *ngIf="errorMsg" class="alert alert-danger py-2 small mb-3">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ errorMsg }}
+  </div>
+
+  <!-- Filter and Header Section -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body p-3">
+      <div class="row align-items-end g-3">
+        <div class="col-md-3">
+          <label class="form-label small fw-bold text-muted">Mes</label>
+          <select class="form-select form-select-sm bg-light" [(ngModel)]="selectedMonth" (change)="onFilterChange()">
+            <option *ngFor="let m of months" [value]="m.value">{{ m.name }}</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-bold text-muted">Año</label>
+          <input type="number" class="form-control form-control-sm bg-light" [(ngModel)]="selectedYear" (change)="onFilterChange()">
+        </div>
+        <div class="col-md-6 text-md-end">
+          <button class="btn btn-sm btn-primary px-4 py-2" data-bs-toggle="modal" data-bs-target="#newPlanModal">
+            <i class="bi bi-plus-lg me-2"></i> Definir Presupuesto
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <!-- Planning Table -->
+    <div class="col-lg-12">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-3 border-0">
+          <h6 class="mb-0 fw-bold text-secondary">Estado del Presupuesto: {{ months[selectedMonth-1].name }} {{ selectedYear }}</h6>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" style="font-size: 0.85rem;">
+              <thead class="bg-light text-muted small text-uppercase fw-bold">
+                <tr>
+                  <th class="px-4 py-3 border-0">Categoría</th>
+                  <th class="py-3 border-0 text-center">Presupuestado</th>
+                  <th class="py-3 border-0 text-center">Gasto Real</th>
+                  <th class="py-3 border-0" style="width: 250px;">Progreso</th>
+                  <th class="text-end px-4 py-3 border-0">Restante</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let plan of planningData">
+                  <td class="px-4 fw-bold text-dark">{{ plan.category_name }}</td>
+                  <td class="text-center">{{ plan.planned_amount | currency }}</td>
+                  <td class="text-center text-muted">{{ plan.actual_amount | currency }}</td>
+                  <td>
+                    <div class="d-flex align-items-center gap-2">
+                      <div class="progress flex-grow-1" style="height: 8px;">
+                        <div class="progress-bar" role="progressbar" 
+                             [style.width.%]="(plan.actual_amount / plan.planned_amount) * 100"
+                             [ngClass]="getProgressBarClass(plan.planned_amount, plan.actual_amount)">
+                        </div>
+                      </div>
+                      <span class="small fw-bold" [ngClass]="{'text-danger': (plan.actual_amount / plan.planned_amount) > 1}">
+                        {{ (plan.actual_amount / plan.planned_amount) * 100 | number:'1.0-0' }}%
+                      </span>
+                    </div>
+                  </td>
+                  <td class="text-end px-4 fw-bold" [ngClass]="plan.remaining < 0 ? 'text-danger' : 'text-success'">
+                    {{ plan.remaining | currency }}
+                  </td>
+                </tr>
+                <tr *ngIf="planningData.length === 0">
+                  <td colspan="5" class="text-center py-5 text-muted">
+                    <i class="bi bi-calendar-x display-4 d-block mb-3 opacity-25"></i>
+                    No hay presupuestos definidos para este mes
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- New Plan Modal -->
+<div class="modal fade" id="newPlanModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0 bg-primary text-white">
+        <h6 class="modal-title fw-bold">Definir Presupuesto</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <form (ngSubmit)="onSavePlan()" #planForm="ngForm">
+          <div class="mb-3">
+            <label class="form-label small fw-bold text-muted">Categoría</label>
+            <select name="category_id" class="form-select form-select-sm bg-light" [(ngModel)]="newPlan.category_id" required>
+              <option [ngValue]="null" disabled>Seleccionar</option>
+              <option *ngFor="let cat of categories" [value]="cat.id">{{ cat.name }}</option>
+            </select>
+          </div>
+          <div class="mb-4">
+            <label class="form-label small fw-bold text-muted">Monto Planeado</label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text bg-light border-end-0">$</span>
+              <input type="number" name="amount" class="form-control bg-light border-start-0" [(ngModel)]="newPlan.planned_amount" required>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-sm btn-primary w-100 py-2 shadow-sm" [disabled]="!planForm.valid || loading" data-bs-dismiss="modal">
+            <span *ngIf="!loading">Guardar Presupuesto</span>
+            <span *ngIf="loading" class="spinner-border spinner-border-sm"></span>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>

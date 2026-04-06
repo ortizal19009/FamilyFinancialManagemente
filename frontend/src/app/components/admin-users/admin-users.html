@@ -1,0 +1,103 @@
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold mb-0 text-dark">Gestión de Usuarios</h4>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item small"><a routerLink="/dashboard" class="text-decoration-none text-muted">Dashboard</a></li>
+        <li class="breadcrumb-item small active" aria-current="page">Usuarios</li>
+      </ol>
+    </nav>
+  </div>
+
+  <div *ngIf="successMsg" class="alert alert-success py-2 small mb-3">
+    <i class="bi bi-check-circle-fill me-2"></i> {{ successMsg }}
+  </div>
+  <div *ngIf="errorMsg" class="alert alert-danger py-2 small mb-3">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ errorMsg }}
+  </div>
+
+  <div class="row g-4">
+    <!-- Form Column -->
+    <div class="col-lg-4">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-3 border-0">
+          <h6 class="mb-0 fw-bold text-secondary">Crear Nuevo Usuario</h6>
+        </div>
+        <div class="card-body p-4">
+          <form (ngSubmit)="onCreateUser()" #userForm="ngForm">
+            <div class="mb-3">
+              <label class="form-label small fw-bold text-muted">Nombre Completo</label>
+              <input type="text" name="full_name" class="form-control form-control-sm bg-light" 
+                     placeholder="Ej: Juan Pérez" [(ngModel)]="newUser.full_name" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-bold text-muted">Correo Electrónico</label>
+              <input type="email" name="email" class="form-control form-control-sm bg-light" 
+                     placeholder="juan@familia.com" [(ngModel)]="newUser.email" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-bold text-muted">Contraseña</label>
+              <input type="password" name="password" class="form-control form-control-sm bg-light" 
+                     [(ngModel)]="newUser.password" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-bold text-muted">Rol</label>
+              <select name="role" class="form-select form-select-sm bg-light" [(ngModel)]="newUser.role">
+                <option value="member">Integrante (Member)</option>
+                <option value="admin">Administrador (Admin)</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-sm btn-primary w-100 py-2 shadow-sm mt-2" [disabled]="!userForm.valid || loading">
+              <span *ngIf="!loading"><i class="bi bi-person-plus me-2"></i> Crear Usuario</span>
+              <span *ngIf="loading" class="spinner-border spinner-border-sm"></span>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- List Column -->
+    <div class="col-lg-8">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-3 border-0">
+          <h6 class="mb-0 fw-bold text-secondary">Usuarios de la Familia</h6>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" style="font-size: 0.85rem;">
+              <thead class="bg-light text-muted small text-uppercase fw-bold">
+                <tr>
+                  <th class="px-4 py-3 border-0">Nombre</th>
+                  <th class="py-3 border-0">Email</th>
+                  <th class="py-3 border-0">Rol</th>
+                  <th class="py-3 border-0">Fecha Registro</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let user of users">
+                  <td class="px-4">
+                    <div class="d-flex align-items-center">
+                      <div class="bg-primary bg-opacity-10 text-primary p-2 rounded-circle me-3" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">
+                        <i class="bi bi-person"></i>
+                      </div>
+                      <span class="fw-bold text-dark">{{ user.full_name }}</span>
+                    </div>
+                  </td>
+                  <td class="text-muted">{{ user.email }}</td>
+                  <td>
+                    <span class="badge" [ngClass]="user.role === 'admin' ? 'bg-danger bg-opacity-10 text-danger' : 'bg-primary bg-opacity-10 text-primary'">
+                      {{ user.role }}
+                    </span>
+                  </td>
+                  <td class="text-muted small">
+                    {{ user.created_at | date:'dd/MM/yyyy' }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

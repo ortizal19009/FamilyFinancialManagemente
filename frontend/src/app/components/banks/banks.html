@@ -1,0 +1,268 @@
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold mb-0 text-dark">Bancos y Cuentas</h4>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item small"><a routerLink="/dashboard" class="text-decoration-none text-muted">Dashboard</a></li>
+        <li class="breadcrumb-item small active" aria-current="page">Bancos</li>
+      </ol>
+    </nav>
+  </div>
+
+  <div *ngIf="successMsg" class="alert alert-success py-2 small mb-3">
+    <i class="bi bi-check-circle-fill me-2"></i> {{ successMsg }}
+  </div>
+  <div *ngIf="errorMsg" class="alert alert-danger py-2 small mb-3">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ errorMsg }}
+  </div>
+
+  <div class="row g-4">
+    <!-- Bancos Column -->
+    <div class="col-lg-4">
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white py-3 border-0">
+          <h6 class="mb-0 fw-bold text-secondary">Registrar Nuevo Banco</h6>
+        </div>
+        <div class="card-body p-4">
+          <form (ngSubmit)="onCreateBank()" #bankForm="ngForm">
+            <div class="mb-3">
+              <label class="form-label small fw-bold text-muted">Nombre del Banco</label>
+              <input type="text" name="name" class="form-control form-control-sm bg-light" 
+                     placeholder="Ej: Banco Pichincha" [(ngModel)]="newBank.name" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-bold text-muted">Descripción</label>
+              <textarea name="description" class="form-control form-control-sm bg-light" 
+                        placeholder="Opcional" [(ngModel)]="newBank.description"></textarea>
+            </div>
+            <button type="submit" class="btn btn-sm btn-primary w-100 py-2 shadow-sm" [disabled]="!bankForm.valid || loadingBank">
+              <span *ngIf="!loadingBank"><i class="bi bi-plus-lg me-2"></i> Agregar Banco</span>
+              <span *ngIf="loadingBank" class="spinner-border spinner-border-sm me-2"></span>
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-3 border-0">
+          <h6 class="mb-0 fw-bold text-secondary">Bancos Registrados</h6>
+        </div>
+        <div class="card-body p-0">
+          <ul class="list-group list-group-flush">
+            <li class="list-group-item px-4 py-3" *ngFor="let bank of banks">
+              <div class="d-flex align-items-start justify-content-between gap-3" *ngIf="editingBankId !== bank.id; else editBankTpl">
+                <div class="d-flex align-items-center">
+                  <div class="bg-primary bg-opacity-10 text-primary p-2 rounded-3 me-3">
+                    <i class="bi bi-bank h5 mb-0"></i>
+                  </div>
+                  <div>
+                    <div class="fw-bold text-dark">{{ bank.name }}</div>
+                    <div class="small text-muted">{{ bank.description || 'Sin descripción' }}</div>
+                  </div>
+                </div>
+                <div class="d-flex gap-2">
+                  <button type="button" class="btn btn-outline-secondary btn-sm" (click)="startEditBank(bank)">
+                    <i class="bi bi-pencil-square"></i>
+                  </button>
+                  <button type="button" class="btn btn-outline-danger btn-sm" (click)="onDeleteBank(bank)" [disabled]="deletingBankId === bank.id">
+                    <span *ngIf="deletingBankId !== bank.id"><i class="bi bi-trash"></i></span>
+                    <span *ngIf="deletingBankId === bank.id" class="spinner-border spinner-border-sm"></span>
+                  </button>
+                </div>
+              </div>
+
+              <ng-template #editBankTpl>
+                <form (ngSubmit)="onUpdateBank()" #editBankForm="ngForm">
+                  <div class="mb-2">
+                    <label class="form-label small fw-bold text-muted">Nombre del Banco</label>
+                    <input type="text" name="editName" class="form-control form-control-sm bg-light"
+                           [(ngModel)]="editingBank.name" required>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted">Descripción</label>
+                    <textarea name="editDescription" class="form-control form-control-sm bg-light"
+                              [(ngModel)]="editingBank.description"></textarea>
+                  </div>
+                  <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary btn-sm" [disabled]="!editBankForm.valid || savingBankId === bank.id">
+                      <span *ngIf="savingBankId !== bank.id">Guardar</span>
+                      <span *ngIf="savingBankId === bank.id" class="spinner-border spinner-border-sm"></span>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" (click)="cancelEditBank()">Cancelar</button>
+                  </div>
+                </form>
+              </ng-template>
+            </li>
+            <li class="list-group-item text-center py-4 text-muted small" *ngIf="banks.length === 0">
+              No hay bancos registrados
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cuentas Column -->
+    <div class="col-lg-8">
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white py-3 border-0">
+          <h6 class="mb-0 fw-bold text-secondary">Registrar Nueva Cuenta</h6>
+        </div>
+        <div class="card-body p-4">
+          <form (ngSubmit)="onCreateAccount()" #accountForm="ngForm">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label small fw-bold text-muted">Banco</label>
+                <select name="bank_id" class="form-select form-select-sm bg-light" [(ngModel)]="newAccount.bank_id" required>
+                  <option [ngValue]="null" disabled>Seleccionar banco</option>
+                  <option *ngFor="let bank of banks" [value]="bank.id">{{ bank.name }}</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small fw-bold text-muted">Número de Cuenta</label>
+                <input type="text" name="account_number" class="form-control form-control-sm bg-light" 
+                       placeholder="0000000000" [(ngModel)]="newAccount.account_number" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small fw-bold text-muted">Tipo de Cuenta</label>
+                <select name="account_type" class="form-select form-select-sm bg-light" [(ngModel)]="newAccount.account_type" required>
+                  <option value="Ahorros">Ahorros</option>
+                  <option value="Corriente">Corriente</option>
+                  <option value="Inversión">Inversión</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small fw-bold text-muted">Pertenece a (Titular)</label>
+                <select name="owner" class="form-select form-select-sm bg-light" [(ngModel)]="newAccount.owner" required>
+                  <option value="" disabled>Seleccionar integrante</option>
+                  <option *ngFor="let member of familyMembers" [value]="member.name">{{ member.name }} ({{ member.relationship }})</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small fw-bold text-muted">Saldo Inicial</label>
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text bg-light border-end-0 text-muted">$</span>
+                  <input type="number" name="current_balance" class="form-control bg-light border-start-0" 
+                         [(ngModel)]="newAccount.current_balance" required>
+                </div>
+              </div>
+              <div class="col-12 mt-4">
+                <button type="submit" class="btn btn-sm btn-primary py-2 shadow-sm px-4" [disabled]="!accountForm.valid || loadingAccount">
+                  <span *ngIf="!loadingAccount"><i class="bi bi-wallet2 me-2"></i> Abrir Cuenta</span>
+                  <span *ngIf="loadingAccount" class="spinner-border spinner-border-sm me-2"></span>
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-3 border-0">
+          <h6 class="mb-0 fw-bold text-secondary">Mis Cuentas Bancarias</h6>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" style="font-size: 0.85rem;">
+              <thead class="bg-light text-muted small text-uppercase fw-bold">
+                <tr>
+                  <th class="px-4 py-3 border-0">Banco / Titular</th>
+                  <th class="py-3 border-0">Número de Cuenta</th>
+                  <th class="py-3 border-0 text-center">Tipo</th>
+                  <th class="text-end px-4 py-3 border-0">Saldo Actual</th>
+                  <th class="text-center py-3 border-0">Acciones</th>
+                </tr>
+              </thead>
+              <tbody class="border-top-0">
+                <tr *ngFor="let acc of accounts">
+                  <td class="px-4">
+                    <ng-container *ngIf="editingAccountId !== acc.id; else editAccountBankTpl">
+                      <div class="fw-bold text-dark">{{ acc.bank_name }}</div>
+                      <div class="small text-muted"><i class="bi bi-person me-1"></i> {{ acc.owner || 'N/A' }}</div>
+                    </ng-container>
+                    <ng-template #editAccountBankTpl>
+                      <div class="mb-2">
+                        <label class="form-label small fw-bold text-muted">Banco</label>
+                        <select name="edit_account_bank_id" class="form-select form-select-sm bg-light" [(ngModel)]="editingAccount.bank_id">
+                          <option [ngValue]="null" disabled>Seleccionar banco</option>
+                          <option *ngFor="let bank of banks" [value]="bank.id">{{ bank.name }}</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label class="form-label small fw-bold text-muted">Titular</label>
+                        <select name="edit_account_owner" class="form-select form-select-sm bg-light" [(ngModel)]="editingAccount.owner">
+                          <option value="" disabled>Seleccionar integrante</option>
+                          <option *ngFor="let member of familyMembers" [value]="member.name">{{ member.name }} ({{ member.relationship }})</option>
+                        </select>
+                      </div>
+                    </ng-template>
+                  </td>
+                  <td class="text-muted">
+                    <ng-container *ngIf="editingAccountId !== acc.id; else editAccountNumberTpl">
+                      {{ acc.account_number }}
+                    </ng-container>
+                    <ng-template #editAccountNumberTpl>
+                      <input type="text" name="edit_account_number" class="form-control form-control-sm bg-light"
+                             [(ngModel)]="editingAccount.account_number">
+                    </ng-template>
+                  </td>
+                  <td class="text-center">
+                    <ng-container *ngIf="editingAccountId !== acc.id; else editAccountTypeTpl">
+                      <span class="badge bg-secondary bg-opacity-10 text-secondary rounded-pill px-2 fw-normal">
+                        {{ acc.account_type }}
+                      </span>
+                    </ng-container>
+                    <ng-template #editAccountTypeTpl>
+                      <select name="edit_account_type" class="form-select form-select-sm bg-light" [(ngModel)]="editingAccount.account_type">
+                        <option value="Ahorros">Ahorros</option>
+                        <option value="Corriente">Corriente</option>
+                        <option value="Inversión">Inversión</option>
+                      </select>
+                    </ng-template>
+                  </td>
+                  <td class="text-end px-4 fw-bold text-success">
+                    <ng-container *ngIf="editingAccountId !== acc.id; else editAccountBalanceTpl">
+                      {{ acc.current_balance | currency }}
+                    </ng-container>
+                    <ng-template #editAccountBalanceTpl>
+                      <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-light border-end-0 text-muted">$</span>
+                        <input type="number" name="edit_account_balance" class="form-control bg-light border-start-0"
+                               [(ngModel)]="editingAccount.current_balance">
+                      </div>
+                    </ng-template>
+                  </td>
+                  <td class="text-center">
+                    <div class="d-flex justify-content-center gap-2" *ngIf="editingAccountId !== acc.id; else editAccountActionsTpl">
+                      <button type="button" class="btn btn-outline-secondary btn-sm" (click)="startEditAccount(acc)">
+                        <i class="bi bi-pencil-square"></i>
+                      </button>
+                      <button type="button" class="btn btn-outline-danger btn-sm" (click)="onDeleteAccount(acc)" [disabled]="deletingAccountId === acc.id">
+                        <span *ngIf="deletingAccountId !== acc.id"><i class="bi bi-x-circle"></i></span>
+                        <span *ngIf="deletingAccountId === acc.id" class="spinner-border spinner-border-sm"></span>
+                      </button>
+                    </div>
+                    <ng-template #editAccountActionsTpl>
+                      <div class="d-flex justify-content-center gap-2">
+                        <button type="button" class="btn btn-primary btn-sm" (click)="onUpdateAccount()" [disabled]="savingAccountId === acc.id">
+                          <span *ngIf="savingAccountId !== acc.id">Guardar</span>
+                          <span *ngIf="savingAccountId === acc.id" class="spinner-border spinner-border-sm"></span>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" (click)="cancelEditAccount()">Cancelar</button>
+                      </div>
+                    </ng-template>
+                  </td>
+                </tr>
+                <tr *ngIf="accounts.length === 0">
+                  <td colspan="5" class="text-center py-5 text-muted">
+                    <i class="bi bi-wallet2 display-4 d-block mb-3 opacity-25"></i>
+                    No tienes cuentas bancarias registradas
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
