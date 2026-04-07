@@ -16,6 +16,8 @@ export class AssetsIncomeComponent implements OnInit {
   assets: any[] = [];
   incomeRecords: any[] = [];
   familyMembers: any[] = [];
+  editingAssetId: number | null = null;
+  editingIncomeId: number | null = null;
 
   newAsset = {
     name: '',
@@ -47,43 +49,123 @@ export class AssetsIncomeComponent implements OnInit {
     this.apiService.getFamilyMembers().subscribe(data => this.familyMembers = data);
   }
 
-  onCreateAsset() {
+  onSubmitAsset() {
     this.loadingAsset = true;
-    this.apiService.createAsset(this.newAsset).subscribe({
+    const request = this.editingAssetId === null
+      ? this.apiService.createAsset(this.newAsset)
+      : this.apiService.updateAsset(this.editingAssetId, this.newAsset);
+
+    request.subscribe({
       next: () => {
-        this.successMsg = 'Bien registrado correctamente';
+        this.successMsg = this.editingAssetId === null
+          ? 'Bien registrado correctamente'
+          : 'Bien actualizado correctamente';
         this.resetAssetForm();
         this.loadData();
         this.loadingAsset = false;
         setTimeout(() => this.successMsg = '', 3000);
       },
       error: () => {
-        this.errorMsg = 'Error al registrar el bien';
+        this.errorMsg = this.editingAssetId === null
+          ? 'Error al registrar el bien'
+          : 'Error al actualizar el bien';
         this.loadingAsset = false;
         setTimeout(() => this.errorMsg = '', 3000);
       }
     });
   }
 
-  onCreateIncome() {
+  onSubmitIncome() {
     this.loadingIncome = true;
-    this.apiService.createIncome(this.newIncome).subscribe({
+    const request = this.editingIncomeId === null
+      ? this.apiService.createIncome(this.newIncome)
+      : this.apiService.updateIncome(this.editingIncomeId, this.newIncome);
+
+    request.subscribe({
       next: () => {
-        this.successMsg = 'Ingreso registrado correctamente';
+        this.successMsg = this.editingIncomeId === null
+          ? 'Ingreso registrado correctamente'
+          : 'Ingreso actualizado correctamente';
         this.resetIncomeForm();
         this.loadData();
         this.loadingIncome = false;
         setTimeout(() => this.successMsg = '', 3000);
       },
       error: () => {
-        this.errorMsg = 'Error al registrar el ingreso';
+        this.errorMsg = this.editingIncomeId === null
+          ? 'Error al registrar el ingreso'
+          : 'Error al actualizar el ingreso';
         this.loadingIncome = false;
         setTimeout(() => this.errorMsg = '', 3000);
       }
     });
   }
 
+  onEditAsset(asset: any) {
+    this.editingAssetId = asset.id;
+    this.newAsset = {
+      name: asset.name ?? '',
+      value: asset.value ?? 0,
+      owner: asset.owner ?? '',
+      description: asset.description ?? '',
+      purchase_date: asset.purchase_date ?? new Date().toISOString().split('T')[0]
+    };
+  }
+
+  onDeleteAsset(asset: any) {
+    if (!confirm(`¿Deseas eliminar el bien "${asset.name}"?`)) {
+      return;
+    }
+
+    this.apiService.deleteAsset(asset.id).subscribe({
+      next: () => {
+        if (this.editingAssetId === asset.id) {
+          this.resetAssetForm();
+        }
+        this.successMsg = 'Bien eliminado correctamente';
+        this.loadData();
+        setTimeout(() => this.successMsg = '', 3000);
+      },
+      error: () => {
+        this.errorMsg = 'Error al eliminar el bien';
+        setTimeout(() => this.errorMsg = '', 3000);
+      }
+    });
+  }
+
+  onEditIncome(income: any) {
+    this.editingIncomeId = income.id;
+    this.newIncome = {
+      amount: income.amount ?? 0,
+      source: income.source ?? '',
+      income_date: income.income_date ?? new Date().toISOString().split('T')[0],
+      description: income.description ?? ''
+    };
+  }
+
+  onDeleteIncome(income: any) {
+    if (!confirm(`¿Deseas eliminar el ingreso de "${income.source}"?`)) {
+      return;
+    }
+
+    this.apiService.deleteIncome(income.id).subscribe({
+      next: () => {
+        if (this.editingIncomeId === income.id) {
+          this.resetIncomeForm();
+        }
+        this.successMsg = 'Ingreso eliminado correctamente';
+        this.loadData();
+        setTimeout(() => this.successMsg = '', 3000);
+      },
+      error: () => {
+        this.errorMsg = 'Error al eliminar el ingreso';
+        setTimeout(() => this.errorMsg = '', 3000);
+      }
+    });
+  }
+
   resetAssetForm() {
+    this.editingAssetId = null;
     this.newAsset = {
       name: '',
       value: 0,
@@ -94,6 +176,7 @@ export class AssetsIncomeComponent implements OnInit {
   }
 
   resetIncomeForm() {
+    this.editingIncomeId = null;
     this.newIncome = {
       amount: 0,
       source: '',

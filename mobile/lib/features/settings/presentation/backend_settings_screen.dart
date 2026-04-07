@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/config/api_config.dart';
+import '../../../core/offline/backend_reachability_service.dart';
 
 class BackendSettingsScreen extends StatefulWidget {
   const BackendSettingsScreen({super.key});
@@ -11,7 +12,9 @@ class BackendSettingsScreen extends StatefulWidget {
 
 class _BackendSettingsScreenState extends State<BackendSettingsScreen> {
   final _controller = TextEditingController();
+  final _reachabilityService = BackendReachabilityService();
   bool _loading = true;
+  bool _checkingConnection = false;
   String? _message;
 
   @override
@@ -48,6 +51,23 @@ class _BackendSettingsScreenState extends State<BackendSettingsScreen> {
     setState(() => _message = 'Se restauro la configuracion por defecto');
   }
 
+  Future<void> _checkConnection() async {
+    setState(() {
+      _checkingConnection = true;
+      _message = 'Comprobando conectividad con el servidor...';
+    });
+
+    final hasConnection = await _reachabilityService.canReachBackend();
+    if (!mounted) return;
+
+    setState(() {
+      _checkingConnection = false;
+      _message = hasConnection
+          ? 'Conexion exitosa con el servidor'
+          : 'No se pudo conectar con el servidor';
+    });
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -58,7 +78,7 @@ class _BackendSettingsScreenState extends State<BackendSettingsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Configuracion backend'),
+        title: const Text('Configuracion'),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -73,7 +93,7 @@ class _BackendSettingsScreenState extends State<BackendSettingsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Conexion del backend',
+                            'Configuracion',
                             style: Theme.of(context).textTheme.titleLarge,
                           ),
                           const SizedBox(height: 8),
@@ -113,6 +133,25 @@ class _BackendSettingsScreenState extends State<BackendSettingsScreen> {
                                 ),
                               ),
                             ],
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: _checkingConnection ? null : _checkConnection,
+                              icon: _checkingConnection
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.wifi_tethering_rounded),
+                              label: Text(
+                                _checkingConnection
+                                    ? 'Comprobando...'
+                                    : 'Comprobar conectividad con el servidor',
+                              ),
+                            ),
                           ),
                         ],
                       ),

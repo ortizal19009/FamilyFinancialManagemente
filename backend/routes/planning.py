@@ -9,6 +9,12 @@ except ModuleNotFoundError:
 
 planning_bp = Blueprint('planning', __name__)
 
+
+def _to_int(value):
+    if value in [None, '']:
+        return None
+    return int(value)
+
 @planning_bp.route('/', methods=['GET'])
 @jwt_required()
 def get_planning():
@@ -71,9 +77,9 @@ def create_or_update_plan():
     if not data or not data.get('category_id') or not data.get('planned_amount'):
         return jsonify({"msg": "category_id, planned_amount, month and year are required"}), 400
     
-    month = data.get('month')
-    year = data.get('year')
-    category_id = data.get('category_id')
+    month = _to_int(data.get('month'))
+    year = _to_int(data.get('year'))
+    category_id = _to_int(data.get('category_id'))
 
     # Buscar si ya existe un plan para esa categoría/mes/año
     plan = MonthlyPlanning.query.filter_by(
@@ -108,10 +114,14 @@ def update_plan(plan_id):
     if not data.get('category_id') or data.get('planned_amount') in [None, ''] or not data.get('month') or not data.get('year'):
         return jsonify({"msg": "category_id, planned_amount, month and year are required"}), 400
 
+    category_id = _to_int(data['category_id'])
+    month = _to_int(data['month'])
+    year = _to_int(data['year'])
+
     duplicate = MonthlyPlanning.query.filter_by(
-        category_id=data['category_id'],
-        month=data['month'],
-        year=data['year']
+        category_id=category_id,
+        month=month,
+        year=year
     ).filter(MonthlyPlanning.id != plan_id).first()
 
     if duplicate:
@@ -120,10 +130,10 @@ def update_plan(plan_id):
         db.session.commit()
         return jsonify({"msg": "Planning merged successfully", "id": duplicate.id}), 200
 
-    plan.category_id = data['category_id']
+    plan.category_id = category_id
     plan.planned_amount = data['planned_amount']
-    plan.month = data['month']
-    plan.year = data['year']
+    plan.month = month
+    plan.year = year
     db.session.commit()
     return jsonify({"msg": "Planning updated successfully"}), 200
 

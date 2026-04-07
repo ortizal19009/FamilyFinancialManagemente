@@ -247,6 +247,202 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
     }
   }
 
+  Future<void> _openLoanDialog({LoanSummary? loan}) async {
+    final descriptionController = TextEditingController(text: loan?.description ?? '');
+    final ownerController = TextEditingController(text: loan?.owner ?? '');
+    final initialAmountController = TextEditingController(
+      text: loan == null ? '0' : loan.initialAmount.toStringAsFixed(2),
+    );
+    final totalInstallmentsController = TextEditingController(
+      text: loan == null ? '1' : loan.totalInstallments.toString(),
+    );
+    final pendingInstallmentsController = TextEditingController(
+      text: loan == null ? '1' : loan.pendingInstallments.toString(),
+    );
+    final monthlyPaymentController = TextEditingController(
+      text: loan == null ? '0' : loan.monthlyPayment.toStringAsFixed(2),
+    );
+    final interestRateController = TextEditingController(text: '0');
+    final startDateController = TextEditingController(text: loan?.startDate ?? '');
+
+    int? selectedBankId = loan?.bankId;
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text(loan == null ? 'Nuevo prestamo' : 'Editar prestamo'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<int?>(
+                      initialValue: selectedBankId,
+                      decoration: const InputDecoration(labelText: 'Banco'),
+                      items: [
+                        const DropdownMenuItem<int?>(value: null, child: Text('Sin banco')),
+                        ..._banks.map(
+                          (bank) => DropdownMenuItem<int?>(
+                            value: bank.id,
+                            child: Text(bank.name),
+                          ),
+                        ),
+                      ],
+                      onChanged: (value) => setDialogState(() => selectedBankId = value),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: descriptionController,
+                      decoration: const InputDecoration(labelText: 'Descripcion'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: ownerController,
+                      decoration: const InputDecoration(labelText: 'Titular'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: initialAmountController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(labelText: 'Monto inicial'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: monthlyPaymentController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(labelText: 'Mensualidad'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: totalInstallmentsController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Cuotas totales'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: pendingInstallmentsController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Cuotas pendientes'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: interestRateController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(labelText: 'Interes'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: startDateController,
+                      decoration: const InputDecoration(labelText: 'Fecha inicio (YYYY-MM-DD)'),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: Text(loan == null ? 'Agregar' : 'Guardar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (result != true) {
+      return;
+    }
+
+    final description = descriptionController.text.trim();
+    if (description.isEmpty) {
+      setState(() => _message = 'La descripcion del prestamo es obligatoria');
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      if (loan == null) {
+        await _repository.createLoan(
+          bankId: selectedBankId,
+          description: description,
+          owner: ownerController.text.trim(),
+          initialAmount: double.tryParse(initialAmountController.text.trim()) ?? 0,
+          totalInstallments: int.tryParse(totalInstallmentsController.text.trim()) ?? 1,
+          pendingInstallments: int.tryParse(pendingInstallmentsController.text.trim()) ?? 1,
+          monthlyPayment: double.tryParse(monthlyPaymentController.text.trim()) ?? 0,
+          interestRate: double.tryParse(interestRateController.text.trim()),
+          startDate: startDateController.text.trim().isEmpty ? null : startDateController.text.trim(),
+        );
+        _message = 'Prestamo agregado correctamente';
+      } else {
+        await _repository.updateLoan(
+          loanId: loan.id,
+          bankId: selectedBankId,
+          description: description,
+          owner: ownerController.text.trim(),
+          initialAmount: double.tryParse(initialAmountController.text.trim()) ?? 0,
+          totalInstallments: int.tryParse(totalInstallmentsController.text.trim()) ?? 1,
+          pendingInstallments: int.tryParse(pendingInstallmentsController.text.trim()) ?? 1,
+          monthlyPayment: double.tryParse(monthlyPaymentController.text.trim()) ?? 0,
+          interestRate: double.tryParse(interestRateController.text.trim()),
+          startDate: startDateController.text.trim().isEmpty ? null : startDateController.text.trim(),
+        );
+        _message = 'Prestamo actualizado correctamente';
+      }
+      await _loadData();
+    } catch (error) {
+      _message = error.toString().replaceFirst('Exception: ', '');
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
+  }
+
+  Future<void> _deleteLoan(LoanSummary loan) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Eliminar prestamo'),
+        content: Text('Se eliminara "${loan.description}".'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      await _repository.deleteLoan(loan.id);
+      _message = 'Prestamo eliminado correctamente';
+      await _loadData();
+    } catch (error) {
+      _message = error.toString().replaceFirst('Exception: ', '');
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -281,6 +477,12 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
                             onPressed: _saving ? null : () => _openCardDialog(),
                             icon: const Icon(Icons.add_rounded),
                             label: const Text('Tarjeta'),
+                          ),
+                          const SizedBox(width: 8),
+                          FilledButton.icon(
+                            onPressed: _saving ? null : () => _openLoanDialog(),
+                            icon: const Icon(Icons.request_quote_rounded),
+                            label: const Text('Prestamo'),
                           ),
                         ],
                       ),
@@ -320,18 +522,23 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
                 subtitle: Text(
                   '${card.cardType ?? 'Tarjeta'} · ${card.owner ?? 'Sin propietario'} · **** ${card.lastFourDigits ?? '----'}',
                 ),
-                trailing: PopupMenuButton<String>(
-                  onSelected: (value) {
-                    if (value == 'edit') {
-                      _openCardDialog(card: card);
-                    } else if (value == 'delete') {
-                      _deleteCard(card);
-                    }
-                  },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(value: 'edit', child: Text('Editar')),
-                    PopupMenuItem(value: 'delete', child: Text('Eliminar')),
-                  ],
+                trailing: SizedBox(
+                  width: 96,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'Editar',
+                        onPressed: () => _openCardDialog(card: card),
+                        icon: const Icon(Icons.edit_outlined),
+                      ),
+                      IconButton(
+                        tooltip: 'Eliminar',
+                        onPressed: () => _deleteCard(card),
+                        icon: const Icon(Icons.delete_outline),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -351,17 +558,39 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
               child: ListTile(
                 leading: const Icon(Icons.request_quote_rounded),
                 title: Text(loan.description),
-                subtitle: Text('${loan.bankName} · ${loan.pendingInstallments}/${loan.totalInstallments} cuotas pendientes'),
-                trailing: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text('\$${loan.initialAmount.toStringAsFixed(2)}'),
-                    Text(
-                      'Mensual \$${loan.monthlyPayment.toStringAsFixed(2)}',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
+                subtitle: Text(
+                  '${loan.bankName} · ${loan.totalInstallments - loan.pendingInstallments}/${loan.totalInstallments} cuotas pagadas',
+                ),
+                trailing: SizedBox(
+                  width: 164,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text('\$${loan.initialAmount.toStringAsFixed(2)}'),
+                            Text(
+                              'Mensual \$${loan.monthlyPayment.toStringAsFixed(2)}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Editar',
+                        onPressed: () => _openLoanDialog(loan: loan),
+                        icon: const Icon(Icons.edit_outlined),
+                      ),
+                      IconButton(
+                        tooltip: 'Eliminar',
+                        onPressed: () => _deleteLoan(loan),
+                        icon: const Icon(Icons.delete_outline),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

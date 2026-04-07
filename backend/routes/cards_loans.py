@@ -11,6 +11,20 @@ except ModuleNotFoundError:
 
 cards_loans_bp = Blueprint('cards_loans', __name__)
 
+
+def _to_int(value, field_name, required=False):
+    if value in [None, '']:
+        if required:
+            raise ValueError(f"{field_name} is required")
+        return None
+    return int(value)
+
+
+def _to_float(value, default=0.0):
+    if value in [None, '']:
+        return default
+    return float(value)
+
 # --- Rutas para Tarjetas ---
 
 @cards_loans_bp.route('/cards', methods=['GET'])
@@ -42,20 +56,25 @@ def get_cards():
 @jwt_required()
 def create_card():
     user_id = int(get_jwt_identity())
-    data = request.get_json()
-    if not data or not data.get('bank_id') or not data.get('card_name'):
+    data = request.get_json() or {}
+    if not data.get('bank_id') or not data.get('card_name'):
         return jsonify({"msg": "bank_id and card_name are required"}), 400
+
+    try:
+        bank_id = _to_int(data.get('bank_id'), 'bank_id', required=True)
+    except (TypeError, ValueError) as exc:
+        return jsonify({"msg": str(exc)}), 400
     
     new_card = Card(
-        bank_id=data['bank_id'],
+        bank_id=bank_id,
         user_id=user_id, # Usar el ID del usuario autenticado
         card_name=data['card_name'],
         owner=data.get('owner'),
         last_four_digits=data.get('last_four_digits'),
         card_type=data.get('card_type', 'Débito'),
-        credit_limit=data.get('credit_limit', 0.00),
-        current_debt=data.get('current_debt', 0.00),
-        available_balance=data.get('available_balance', 0.00)
+        credit_limit=_to_float(data.get('credit_limit')),
+        current_debt=_to_float(data.get('current_debt')),
+        available_balance=_to_float(data.get('available_balance'))
     )
     db.session.add(new_card)
     db.session.commit()
@@ -79,14 +98,17 @@ def update_card(card_id):
     if not data.get('bank_id') or not data.get('card_name'):
         return jsonify({"msg": "bank_id and card_name are required"}), 400
 
-    card.bank_id = data['bank_id']
+    try:
+        card.bank_id = _to_int(data.get('bank_id'), 'bank_id', required=True)
+    except (TypeError, ValueError) as exc:
+        return jsonify({"msg": str(exc)}), 400
     card.card_name = data['card_name']
     card.owner = data.get('owner')
     card.last_four_digits = data.get('last_four_digits')
     card.card_type = data.get('card_type', 'Débito')
-    card.credit_limit = data.get('credit_limit', 0.00)
-    card.current_debt = data.get('current_debt', 0.00)
-    card.available_balance = data.get('available_balance', 0.00)
+    card.credit_limit = _to_float(data.get('credit_limit'))
+    card.current_debt = _to_float(data.get('current_debt'))
+    card.available_balance = _to_float(data.get('available_balance'))
     db.session.commit()
 
     return jsonify({"msg": "Card updated successfully"}), 200
@@ -129,6 +151,7 @@ def get_loans():
         
     return jsonify([{
         "id": l.id,
+        "bank_id": l.bank_id,
         "bank_name": l.bank.name if l.bank else None,
         "description": l.description,
         "owner": l.owner,
@@ -144,22 +167,81 @@ def get_loans():
 @jwt_required()
 def create_loan():
     user_id = int(get_jwt_identity())
-    data = request.get_json()
-    if not data or not data.get('description') or not data.get('initial_amount'):
+    data = request.get_json() or {}
+    if not data.get('description') or data.get('initial_amount') in [None, '']:
         return jsonify({"msg": "description and initial_amount are required"}), 400
+
+    try:
+        bank_id = _to_int(data.get('bank_id'), 'bank_id')
+        total_installments = _to_int(data.get('total_installments'), 'total_installments') or 1
+        pending_installments = _to_int(data.get('pending_installments'), 'pending_installments') or 1
+    except (TypeError, ValueError) as exc:
+        return jsonify({"msg": str(exc)}), 400
     
     new_loan = Loan(
         user_id=user_id, # Usar el ID del usuario autenticado
-        bank_id=data.get('bank_id'),
+        bank_id=bank_id,
         description=data['description'],
         owner=data.get('owner'),
-        initial_amount=data['initial_amount'],
-        total_installments=data.get('total_installments', 1),
-        pending_installments=data.get('pending_installments', 1),
-        monthly_payment=data.get('monthly_payment', 0.00),
-        interest_rate=data.get('interest_rate'),
+        initial_amount=_to_float(data['initial_amount']),
+        total_installments=total_installments,
+        pending_installments=pending_installments,
+        monthly_payment=_to_float(data.get('monthly_payment')),
+        interest_rate=_to_float(data.get('interest_rate'), default=None),
         start_date=datetime.strptime(data['start_date'], '%Y-%m-%d') if data.get('start_date') else None
     )
     db.session.add(new_loan)
     db.session.commit()
     return jsonify({"msg": "Loan created successfully", "id": new_loan.id}), 201
+
+
+@cards_loans_bp.route('/loans/<int:loan_id>', methods=['PUT'])
+@jwt_required()
+def update_loan(loan_id):
+    user_id = int(get_jwt_identity())
+    user = db.session.get(User, user_id)
+    loan = db.session.get(Loan, loan_id)
+
+    if not loan:
+        return jsonify({"msg": "Loan not found"}), 404
+
+    if user.role != 'admin' and loan.user_id != user_id:
+        return jsonify({"msg": "No autorizado para editar este préstamo"}), 403
+
+    data = request.get_json() or {}
+    if not data.get('description') or data.get('initial_amount') in [None, '']:
+        return jsonify({"msg": "description and initial_amount are required"}), 400
+
+    try:
+        loan.bank_id = _to_int(data.get('bank_id'), 'bank_id')
+        loan.initial_amount = _to_float(data.get('initial_amount'))
+        loan.total_installments = _to_int(data.get('total_installments'), 'total_installments') or 1
+        loan.pending_installments = _to_int(data.get('pending_installments'), 'pending_installments') or 1
+        loan.monthly_payment = _to_float(data.get('monthly_payment'))
+        loan.interest_rate = _to_float(data.get('interest_rate'), default=None)
+    except (TypeError, ValueError) as exc:
+        return jsonify({"msg": str(exc)}), 400
+
+    loan.description = data['description']
+    loan.owner = data.get('owner')
+    loan.start_date = datetime.strptime(data['start_date'], '%Y-%m-%d') if data.get('start_date') else None
+    db.session.commit()
+    return jsonify({"msg": "Loan updated successfully"}), 200
+
+
+@cards_loans_bp.route('/loans/<int:loan_id>', methods=['DELETE'])
+@jwt_required()
+def delete_loan(loan_id):
+    user_id = int(get_jwt_identity())
+    user = db.session.get(User, user_id)
+    loan = db.session.get(Loan, loan_id)
+
+    if not loan:
+        return jsonify({"msg": "Loan not found"}), 404
+
+    if user.role != 'admin' and loan.user_id != user_id:
+        return jsonify({"msg": "No autorizado para eliminar este préstamo"}), 403
+
+    db.session.delete(loan)
+    db.session.commit()
+    return jsonify({"msg": "Loan deleted successfully"}), 200

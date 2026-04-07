@@ -1,10 +1,10 @@
 <div class="container-fluid py-3">
   <div class="d-flex justify-content-between align-items-center mb-4">
-    <h4 class="fw-bold mb-0 text-dark">Personas que nos Deben</h4>
+    <h4 class="fw-bold mb-0 text-dark">Deudores y Deudas Pequeñas</h4>
     <nav aria-label="breadcrumb">
       <ol class="breadcrumb mb-0">
         <li class="breadcrumb-item small"><a routerLink="/dashboard" class="text-decoration-none text-muted">Dashboard</a></li>
-        <li class="breadcrumb-item small active" aria-current="page">Deudores</li>
+        <li class="breadcrumb-item small active" aria-current="page">Deudas personales</li>
       </ol>
     </nav>
   </div>
@@ -16,115 +16,278 @@
     <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ errorMsg }}
   </div>
 
-  <div class="row g-4">
-    <!-- Form Side -->
-    <div class="col-lg-4">
-      <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white py-3 border-0">
-          <h6 class="mb-0 fw-bold text-secondary">Registrar Nueva Deuda</h6>
-        </div>
-        <div class="card-body p-4">
-          <form (ngSubmit)="onSubmit()" #debtorForm="ngForm">
-            <div class="mb-3">
-              <label class="form-label small fw-bold text-muted">Nombre de la Persona</label>
-              <input type="text" name="name" class="form-control form-control-sm bg-light" 
-                     placeholder="Ej: Juan Pérez" [(ngModel)]="newDebtor.name" required>
-            </div>
+  <ul class="nav nav-pills mb-4 gap-2" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="btn btn-sm btn-outline-primary active px-4" data-bs-toggle="pill" data-bs-target="#tab-debtors" type="button" role="tab">
+        <i class="bi bi-people me-2"></i> Personas que nos deben
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="btn btn-sm btn-outline-primary px-4" data-bs-toggle="pill" data-bs-target="#tab-small-debts" type="button" role="tab">
+        <i class="bi bi-cash-coin me-2"></i> Deudas pequeñas
+      </button>
+    </li>
+  </ul>
 
-            <div class="row g-3 mb-3">
-              <div class="col-md-6">
-                <label class="form-label small fw-bold text-muted">Monto</label>
-                <div class="input-group input-group-sm">
-                  <span class="input-group-text bg-light border-end-0 text-muted">$</span>
-                  <input type="number" name="amount" class="form-control bg-light border-start-0" 
-                         placeholder="0.00" [(ngModel)]="newDebtor.amount_owed" required>
+  <div class="tab-content">
+    <div class="tab-pane fade show active" id="tab-debtors" role="tabpanel">
+      <div class="row g-4">
+        <div class="col-lg-4">
+          <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3 border-0">
+              <h6 class="mb-0 fw-bold text-secondary">
+                {{ editingDebtorId === null ? 'Registrar Nueva Deuda' : 'Editar Deudor' }}
+              </h6>
+            </div>
+            <div class="card-body p-4">
+              <form (ngSubmit)="onSubmitDebtor()" #debtorForm="ngForm">
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-muted">Nombre de la Persona</label>
+                  <input type="text" name="name" class="form-control form-control-sm bg-light"
+                         placeholder="Ej: Juan Pérez" [(ngModel)]="newDebtor.name" required>
                 </div>
+
+                <div class="row g-3 mb-3">
+                  <div class="col-md-6">
+                    <label class="form-label small fw-bold text-muted">Monto</label>
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text bg-light border-end-0 text-muted">$</span>
+                      <input type="number" name="amount" class="form-control bg-light border-start-0"
+                             placeholder="0.00" [(ngModel)]="newDebtor.amount_owed" required>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small fw-bold text-muted">Fecha Límite</label>
+                    <input type="date" name="due_date" class="form-control form-control-sm bg-light"
+                           [(ngModel)]="newDebtor.due_date">
+                  </div>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-muted">Estado</label>
+                  <select name="status" class="form-select form-select-sm bg-light" [(ngModel)]="newDebtor.status">
+                    <option value="pendiente">Pendiente</option>
+                    <option value="pagado">Pagado</option>
+                    <option value="vencido">Vencido</option>
+                  </select>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-muted">Descripción / Motivo</label>
+                  <textarea name="description" class="form-control form-control-sm bg-light"
+                            placeholder="Ej: Préstamo para repuestos" [(ngModel)]="newDebtor.description"></textarea>
+                </div>
+
+                <div class="d-grid gap-2">
+                  <button type="submit" class="btn btn-sm btn-primary w-100 py-2 shadow-sm" [disabled]="!debtorForm.valid || loadingDebtor">
+                    <span *ngIf="!loadingDebtor">
+                      <i class="bi" [ngClass]="editingDebtorId === null ? 'bi-person-plus me-2' : 'bi-check2-square me-2'"></i>
+                      {{ editingDebtorId === null ? 'Registrar Deudor' : 'Guardar Cambios' }}
+                    </span>
+                    <span *ngIf="loadingDebtor" class="spinner-border spinner-border-sm"></span>
+                  </button>
+                  <button *ngIf="editingDebtorId !== null" type="button" class="btn btn-sm btn-outline-secondary" (click)="resetDebtorForm()">
+                    Cancelar edición
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-8">
+          <div class="card border-0 shadow-sm mb-4 bg-secondary text-white">
+            <div class="card-body p-4 d-flex justify-content-between align-items-center">
+              <div>
+                <div class="small text-white-50 text-uppercase fw-bold mb-1">Total por Cobrar</div>
+                <h2 class="fw-bold mb-0">{{ getTotalOwed() | currency }}</h2>
               </div>
-              <div class="col-md-6">
-                <label class="form-label small fw-bold text-muted">Fecha Límite</label>
-                <input type="date" name="due_date" class="form-control form-control-sm bg-light" 
-                       [(ngModel)]="newDebtor.due_date">
+              <i class="bi bi-people display-4 opacity-25"></i>
+            </div>
+          </div>
+
+          <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3 border-0">
+              <h6 class="mb-0 fw-bold text-secondary">Listado de Deudores</h6>
+            </div>
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" style="font-size: 0.85rem;">
+                  <thead class="bg-light text-muted small text-uppercase fw-bold">
+                    <tr>
+                      <th class="px-4 py-3 border-0">Persona</th>
+                      <th class="py-3 border-0">Descripción</th>
+                      <th class="py-3 border-0">Fecha Límite</th>
+                      <th class="py-3 border-0 text-center">Estado</th>
+                      <th class="text-end px-4 py-3 border-0">Monto</th>
+                      <th class="text-center px-4 py-3 border-0">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let debtor of debtors">
+                      <td class="px-4"><div class="fw-bold text-dark">{{ debtor.name }}</div></td>
+                      <td class="text-muted small">{{ debtor.description }}</td>
+                      <td class="text-muted">{{ debtor.due_date || 'Sin fecha' }}</td>
+                      <td class="text-center">
+                        <span class="badge rounded-pill px-2 fw-normal"
+                              [ngClass]="debtor.status === 'pendiente' ? 'bg-warning bg-opacity-10 text-warning' : 'bg-success bg-opacity-10 text-success'">
+                          {{ debtor.status | titlecase }}
+                        </span>
+                      </td>
+                      <td class="text-end px-4 fw-bold" [ngClass]="debtor.status === 'pendiente' ? 'text-danger' : 'text-muted'">
+                        {{ debtor.amount_owed | currency }}
+                      </td>
+                      <td class="text-center px-4">
+                        <button type="button" class="btn btn-sm btn-outline-primary me-2" (click)="onEditDebtor(debtor)">
+                          <i class="bi bi-pencil"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-danger" (click)="onDeleteDebtor(debtor)">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </td>
+                    </tr>
+                    <tr *ngIf="debtors.length === 0">
+                      <td colspan="6" class="text-center py-5 text-muted">No hay registros de personas que deban dinero</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
-
-            <div class="mb-3">
-              <label class="form-label small fw-bold text-muted">Descripción / Motivo</label>
-              <textarea name="description" class="form-control form-control-sm bg-light" 
-                        placeholder="Ej: Préstamo para repuestos" [(ngModel)]="newDebtor.description"></textarea>
-            </div>
-
-            <button type="submit" class="btn btn-sm btn-primary w-100 py-2 shadow-sm" [disabled]="!debtorForm.valid || loading">
-              <span *ngIf="!loading"><i class="bi bi-person-plus me-2"></i> Registrar Deudor</span>
-              <span *ngIf="loading" class="spinner-border spinner-border-sm"></span>
-            </button>
-          </form>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Table Side -->
-    <div class="col-lg-8">
-      <!-- Summary Card -->
-      <div class="card border-0 shadow-sm mb-4 bg-secondary text-white">
-        <div class="card-body p-4 d-flex justify-content-between align-items-center">
-          <div>
-            <div class="small text-white-50 text-uppercase fw-bold mb-1">Total por Cobrar</div>
-            <h2 class="fw-bold mb-0">{{ getTotalOwed() | currency }}</h2>
-          </div>
-          <i class="bi bi-people display-4 opacity-25"></i>
-        </div>
-      </div>
+    <div class="tab-pane fade" id="tab-small-debts" role="tabpanel">
+      <div class="row g-4">
+        <div class="col-lg-4">
+          <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3 border-0">
+              <h6 class="mb-0 fw-bold text-secondary">
+                {{ editingSmallDebtId === null ? 'Registrar Deuda Pequeña' : 'Editar Deuda Pequeña' }}
+              </h6>
+            </div>
+            <div class="card-body p-4">
+              <form (ngSubmit)="onSubmitSmallDebt()" #smallDebtForm="ngForm">
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-muted">A quién le debo</label>
+                  <input type="text" name="lender_name" class="form-control form-control-sm bg-light"
+                         placeholder="Ej: Carlos, Ana" [(ngModel)]="newSmallDebt.lender_name" required>
+                </div>
 
-      <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white py-3 border-0">
-          <h6 class="mb-0 fw-bold text-secondary">Listado de Deudores</h6>
-        </div>
-        <div class="card-body p-0">
-          <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0" style="font-size: 0.85rem;">
-              <thead class="bg-light text-muted small text-uppercase fw-bold">
-                <tr>
-                  <th class="px-4 py-3 border-0">Persona</th>
-                  <th class="py-3 border-0">Descripción</th>
-                  <th class="py-3 border-0">Fecha Límite</th>
-                  <th class="py-3 border-0 text-center">Estado</th>
-                  <th class="text-end px-4 py-3 border-0">Monto</th>
-                  <th class="text-center px-4 py-3 border-0">Acción</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let debtor of debtors">
-                  <td class="px-4">
-                    <div class="fw-bold text-dark">{{ debtor.name }}</div>
-                  </td>
-                  <td class="text-muted small">{{ debtor.description }}</td>
-                  <td class="text-muted">{{ debtor.due_date || 'Sin fecha' }}</td>
-                  <td class="text-center">
-                    <span class="badge rounded-pill px-2 fw-normal" 
-                          [ngClass]="debtor.status === 'pendiente' ? 'bg-warning bg-opacity-10 text-warning' : 'bg-success bg-opacity-10 text-success'">
-                      {{ debtor.status | titlecase }}
+                <div class="row g-3 mb-3">
+                  <div class="col-md-6">
+                    <label class="form-label small fw-bold text-muted">Monto</label>
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text bg-light border-end-0 text-muted">$</span>
+                      <input type="number" name="small_amount" class="form-control bg-light border-start-0"
+                             placeholder="0.00" [(ngModel)]="newSmallDebt.amount" required>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small fw-bold text-muted">Fecha Límite</label>
+                    <input type="date" name="small_due_date" class="form-control form-control-sm bg-light"
+                           [(ngModel)]="newSmallDebt.due_date">
+                  </div>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-muted">Fecha del Préstamo</label>
+                  <input type="date" name="borrowed_date" class="form-control form-control-sm bg-light"
+                         [(ngModel)]="newSmallDebt.borrowed_date">
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-muted">Estado</label>
+                  <select name="small_status" class="form-select form-select-sm bg-light" [(ngModel)]="newSmallDebt.status">
+                    <option value="pendiente">Pendiente</option>
+                    <option value="pagado">Pagado</option>
+                  </select>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-muted">Descripción / Motivo</label>
+                  <textarea name="small_description" class="form-control form-control-sm bg-light"
+                            placeholder="Ej: Me prestó para gasolina" [(ngModel)]="newSmallDebt.description"></textarea>
+                </div>
+
+                <div class="d-grid gap-2">
+                  <button type="submit" class="btn btn-sm btn-primary w-100 py-2 shadow-sm" [disabled]="!smallDebtForm.valid || loadingSmallDebt">
+                    <span *ngIf="!loadingSmallDebt">
+                      <i class="bi" [ngClass]="editingSmallDebtId === null ? 'bi-cash-coin me-2' : 'bi-check2-square me-2'"></i>
+                      {{ editingSmallDebtId === null ? 'Registrar Deuda' : 'Guardar Cambios' }}
                     </span>
-                  </td>
-                  <td class="text-end px-4 fw-bold" [ngClass]="debtor.status === 'pendiente' ? 'text-danger' : 'text-muted'">
-                    {{ debtor.amount_owed | currency }}
-                  </td>
-                  <td class="text-center px-4">
-                    <button *ngIf="debtor.status === 'pendiente'" 
-                            class="btn btn-sm btn-outline-success border-0 p-1" 
-                            (click)="onUpdateStatus(debtor.id, 'pagado')"
-                            title="Marcar como pagado">
-                      <i class="bi bi-check-circle-fill h5 mb-0"></i>
-                    </button>
-                    <i *ngIf="debtor.status === 'pagado'" class="bi bi-check-all text-success h5 mb-0"></i>
-                  </td>
-                </tr>
-                <tr *ngIf="debtors.length === 0">
-                  <td colspan="6" class="text-center py-5 text-muted">
-                    No hay registros de personas que deban dinero
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                    <span *ngIf="loadingSmallDebt" class="spinner-border spinner-border-sm"></span>
+                  </button>
+                  <button *ngIf="editingSmallDebtId !== null" type="button" class="btn btn-sm btn-outline-secondary" (click)="resetSmallDebtForm()">
+                    Cancelar edición
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-8">
+          <div class="card border-0 shadow-sm mb-4 bg-danger text-white">
+            <div class="card-body p-4 d-flex justify-content-between align-items-center">
+              <div>
+                <div class="small text-white-50 text-uppercase fw-bold mb-1">Total que Debo</div>
+                <h2 class="fw-bold mb-0">{{ getTotalSmallDebts() | currency }}</h2>
+              </div>
+              <i class="bi bi-cash-coin display-4 opacity-25"></i>
+            </div>
+          </div>
+
+          <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3 border-0">
+              <h6 class="mb-0 fw-bold text-secondary">Listado de Deudas Pequeñas</h6>
+            </div>
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" style="font-size: 0.85rem;">
+                  <thead class="bg-light text-muted small text-uppercase fw-bold">
+                    <tr>
+                      <th class="px-4 py-3 border-0">Persona</th>
+                      <th class="py-3 border-0">Descripción</th>
+                      <th class="py-3 border-0">Fecha préstamo</th>
+                      <th class="py-3 border-0">Fecha límite</th>
+                      <th class="py-3 border-0 text-center">Estado</th>
+                      <th class="text-end px-4 py-3 border-0">Monto</th>
+                      <th class="text-center px-4 py-3 border-0">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let debt of smallDebts">
+                      <td class="px-4"><div class="fw-bold text-dark">{{ debt.lender_name }}</div></td>
+                      <td class="text-muted small">{{ debt.description }}</td>
+                      <td class="text-muted">{{ debt.borrowed_date || 'Sin fecha' }}</td>
+                      <td class="text-muted">{{ debt.due_date || 'Sin fecha' }}</td>
+                      <td class="text-center">
+                        <span class="badge rounded-pill px-2 fw-normal"
+                              [ngClass]="debt.status === 'pendiente' ? 'bg-danger bg-opacity-10 text-danger' : 'bg-success bg-opacity-10 text-success'">
+                          {{ debt.status | titlecase }}
+                        </span>
+                      </td>
+                      <td class="text-end px-4 fw-bold" [ngClass]="debt.status === 'pendiente' ? 'text-danger' : 'text-muted'">
+                        {{ debt.amount | currency }}
+                      </td>
+                      <td class="text-center px-4">
+                        <button type="button" class="btn btn-sm btn-outline-primary me-2" (click)="onEditSmallDebt(debt)">
+                          <i class="bi bi-pencil"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-danger" (click)="onDeleteSmallDebt(debt)">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </td>
+                    </tr>
+                    <tr *ngIf="smallDebts.length === 0">
+                      <td colspan="7" class="text-center py-5 text-muted">No hay deudas pequeñas registradas</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
       </div>

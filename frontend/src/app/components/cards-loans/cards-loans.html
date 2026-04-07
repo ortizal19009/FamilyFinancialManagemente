@@ -37,10 +37,12 @@
         <div class="col-lg-4">
           <div class="card border-0 shadow-sm">
             <div class="card-header bg-white py-3 border-0">
-              <h6 class="mb-0 fw-bold text-secondary">Registrar Nueva Tarjeta</h6>
+              <h6 class="mb-0 fw-bold text-secondary">
+                {{ editingCardId === null ? 'Registrar Nueva Tarjeta' : 'Editar Tarjeta' }}
+              </h6>
             </div>
             <div class="card-body p-4">
-              <form (ngSubmit)="onCreateCard()" #cardForm="ngForm">
+              <form (ngSubmit)="onSubmitCard()" #cardForm="ngForm">
                 <div class="mb-3">
                   <label class="form-label small fw-bold text-muted">Banco Emisor</label>
                   <select name="bank_id" class="form-select form-select-sm bg-light" [(ngModel)]="newCard.bank_id" required>
@@ -92,10 +94,18 @@
                   </div>
                 </div>
 
-                <button type="submit" class="btn btn-sm btn-primary w-100 py-2 shadow-sm mt-3" [disabled]="!cardForm.valid || loadingCard">
-                  <span *ngIf="!loadingCard"><i class="bi bi-plus-lg me-2"></i> Agregar Tarjeta</span>
-                  <span *ngIf="loadingCard" class="spinner-border spinner-border-sm me-2"></span>
-                </button>
+                <div class="d-grid gap-2 mt-3">
+                  <button type="submit" class="btn btn-sm btn-primary w-100 py-2 shadow-sm" [disabled]="!cardForm.valid || loadingCard">
+                    <span *ngIf="!loadingCard">
+                      <i class="bi" [ngClass]="editingCardId === null ? 'bi-plus-lg me-2' : 'bi-check2-square me-2'"></i>
+                      {{ editingCardId === null ? 'Agregar Tarjeta' : 'Guardar Cambios' }}
+                    </span>
+                    <span *ngIf="loadingCard" class="spinner-border spinner-border-sm me-2"></span>
+                  </button>
+                  <button *ngIf="editingCardId !== null" type="button" class="btn btn-sm btn-outline-secondary" (click)="resetCardForm()">
+                    Cancelar edición
+                  </button>
+                </div>
               </form>
             </div>
           </div>
@@ -137,6 +147,15 @@
                     <div class="small text-muted text-uppercase fw-bold" style="font-size: 0.65rem;">Saldo en Cuenta</div>
                     <div class="h5 fw-bold text-primary mb-0">{{ card.available_balance | currency }}</div>
                   </div>
+
+                  <div class="d-flex justify-content-end gap-2 mt-4">
+                    <button type="button" class="btn btn-sm btn-outline-primary" (click)="onEditCard(card)">
+                      <i class="bi bi-pencil me-1"></i> Editar
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger" (click)="onDeleteCard(card)">
+                      <i class="bi bi-trash me-1"></i> Eliminar
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -154,10 +173,12 @@
         <div class="col-lg-4">
           <div class="card border-0 shadow-sm">
             <div class="card-header bg-white py-3 border-0">
-              <h6 class="mb-0 fw-bold text-secondary">Nuevo Préstamo</h6>
+              <h6 class="mb-0 fw-bold text-secondary">
+                {{ editingLoanId === null ? 'Nuevo Préstamo' : 'Editar Préstamo' }}
+              </h6>
             </div>
             <div class="card-body p-4">
-              <form (ngSubmit)="onCreateLoan()" #loanForm="ngForm">
+              <form (ngSubmit)="onSubmitLoan()" #loanForm="ngForm">
                 <div class="mb-3">
                   <label class="form-label small fw-bold text-muted">Descripción</label>
                   <input type="text" name="loan_desc" class="form-control form-control-sm bg-light" 
@@ -197,10 +218,18 @@
                     <input type="number" name="pend_inst" class="form-control form-control-sm bg-light" [(ngModel)]="newLoan.pending_installments" required>
                   </div>
                 </div>
-                <button type="submit" class="btn btn-sm btn-primary w-100 py-2 shadow-sm" [disabled]="!loanForm.valid || loadingLoan">
-                  <span *ngIf="!loadingLoan"><i class="bi bi-plus-lg me-2"></i> Registrar Préstamo</span>
-                  <span *ngIf="loadingLoan" class="spinner-border spinner-border-sm me-2"></span>
-                </button>
+                <div class="d-grid gap-2">
+                  <button type="submit" class="btn btn-sm btn-primary w-100 py-2 shadow-sm" [disabled]="!loanForm.valid || loadingLoan">
+                    <span *ngIf="!loadingLoan">
+                      <i class="bi" [ngClass]="editingLoanId === null ? 'bi-plus-lg me-2' : 'bi-check2-square me-2'"></i>
+                      {{ editingLoanId === null ? 'Registrar Préstamo' : 'Guardar Cambios' }}
+                    </span>
+                    <span *ngIf="loadingLoan" class="spinner-border spinner-border-sm me-2"></span>
+                  </button>
+                  <button *ngIf="editingLoanId !== null" type="button" class="btn btn-sm btn-outline-secondary" (click)="resetLoanForm()">
+                    Cancelar edición
+                  </button>
+                </div>
               </form>
             </div>
           </div>
@@ -217,6 +246,7 @@
                       <th class="py-3 border-0">Banco</th>
                       <th class="py-3 border-0">Progreso Pago</th>
                       <th class="py-3 border-0 text-center">Cuotas</th>
+                      <th class="py-3 border-0 text-center">Acciones</th>
                       <th class="text-end px-4 py-3 border-0">Mensualidad</th>
                     </tr>
                   </thead>
@@ -241,12 +271,20 @@
                           {{ loan.total_installments - loan.pending_installments }} / {{ loan.total_installments }}
                         </span>
                       </td>
+                      <td class="text-center">
+                        <button type="button" class="btn btn-sm btn-outline-primary me-2" (click)="onEditLoan(loan)">
+                          <i class="bi bi-pencil"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-danger" (click)="onDeleteLoan(loan)">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </td>
                       <td class="text-end px-4 fw-bold text-danger">
                         {{ loan.monthly_payment | currency }}
                       </td>
                     </tr>
                     <tr *ngIf="loans.length === 0">
-                      <td colspan="5" class="text-center py-5 text-muted">No hay préstamos registrados</td>
+                      <td colspan="6" class="text-center py-5 text-muted">No hay préstamos registrados</td>
                     </tr>
                   </tbody>
                 </table>

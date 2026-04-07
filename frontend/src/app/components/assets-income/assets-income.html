@@ -37,10 +37,12 @@
         <div class="col-lg-4">
           <div class="card border-0 shadow-sm">
             <div class="card-header bg-white py-3 border-0">
-              <h6 class="mb-0 fw-bold text-secondary">Registrar Nuevo Bien</h6>
+              <h6 class="mb-0 fw-bold text-secondary">
+                {{ editingAssetId === null ? 'Registrar Nuevo Bien' : 'Editar Bien' }}
+              </h6>
             </div>
             <div class="card-body p-4">
-              <form (ngSubmit)="onCreateAsset()" #assetForm="ngForm">
+              <form (ngSubmit)="onSubmitAsset()" #assetForm="ngForm">
                 <div class="mb-3">
                   <label class="form-label small fw-bold text-muted">Nombre del Bien</label>
                   <input type="text" name="name" class="form-control form-control-sm bg-light" 
@@ -68,10 +70,18 @@
                   <label class="form-label small fw-bold text-muted">Descripción</label>
                   <textarea name="description" class="form-control form-control-sm bg-light" [(ngModel)]="newAsset.description"></textarea>
                 </div>
-                <button type="submit" class="btn btn-sm btn-primary w-100 py-2 shadow-sm mt-2" [disabled]="!assetForm.valid || loadingAsset">
-                  <span *ngIf="!loadingAsset"><i class="bi bi-plus-lg me-2"></i> Agregar al Inventario</span>
-                  <span *ngIf="loadingAsset" class="spinner-border spinner-border-sm"></span>
-                </button>
+                <div class="d-grid gap-2 mt-2">
+                  <button type="submit" class="btn btn-sm btn-primary py-2 shadow-sm" [disabled]="!assetForm.valid || loadingAsset">
+                    <span *ngIf="!loadingAsset">
+                      <i class="bi" [ngClass]="editingAssetId === null ? 'bi-plus-lg me-2' : 'bi-check2-square me-2'"></i>
+                      {{ editingAssetId === null ? 'Agregar al Inventario' : 'Guardar Cambios' }}
+                    </span>
+                    <span *ngIf="loadingAsset" class="spinner-border spinner-border-sm"></span>
+                  </button>
+                  <button *ngIf="editingAssetId !== null" type="button" class="btn btn-sm btn-outline-secondary" (click)="resetAssetForm()">
+                    Cancelar edición
+                  </button>
+                </div>
               </form>
             </div>
           </div>
@@ -95,20 +105,31 @@
                   <thead class="bg-light text-muted small text-uppercase fw-bold">
                     <tr>
                       <th class="px-4 py-3 border-0">Nombre del Bien</th>
+                      <th class="py-3 border-0">Titular</th>
                       <th class="py-3 border-0">Adquisición</th>
                       <th class="py-3 border-0">Descripción</th>
+                      <th class="py-3 border-0 text-center">Acciones</th>
                       <th class="text-end px-4 py-3 border-0">Valor</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr *ngFor="let asset of assets">
                       <td class="px-4 fw-bold text-dark">{{ asset.name }}</td>
+                      <td class="text-muted">{{ asset.owner || 'N/A' }}</td>
                       <td class="text-muted">{{ asset.purchase_date || 'N/A' }}</td>
                       <td class="text-muted small">{{ asset.description }}</td>
+                      <td class="text-center">
+                        <button type="button" class="btn btn-sm btn-outline-primary me-2" (click)="onEditAsset(asset)">
+                          <i class="bi bi-pencil"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-danger" (click)="onDeleteAsset(asset)">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </td>
                       <td class="text-end px-4 fw-bold text-primary">{{ asset.value | currency }}</td>
                     </tr>
                     <tr *ngIf="assets.length === 0">
-                      <td colspan="4" class="text-center py-5 text-muted">No hay bienes registrados en el inventario</td>
+                      <td colspan="6" class="text-center py-5 text-muted">No hay bienes registrados en el inventario</td>
                     </tr>
                   </tbody>
                 </table>
@@ -125,10 +146,12 @@
         <div class="col-lg-4">
           <div class="card border-0 shadow-sm">
             <div class="card-header bg-white py-3 border-0">
-              <h6 class="mb-0 fw-bold text-secondary">Registrar Nuevo Ingreso</h6>
+              <h6 class="mb-0 fw-bold text-secondary">
+                {{ editingIncomeId === null ? 'Registrar Nuevo Ingreso' : 'Editar Ingreso' }}
+              </h6>
             </div>
             <div class="card-body p-4">
-              <form (ngSubmit)="onCreateIncome()" #incomeForm="ngForm">
+              <form (ngSubmit)="onSubmitIncome()" #incomeForm="ngForm">
                 <div class="mb-3">
                   <label class="form-label small fw-bold text-muted">Fuente / Origen</label>
                   <input type="text" name="source" class="form-control form-control-sm bg-light" 
@@ -149,10 +172,18 @@
                   <label class="form-label small fw-bold text-muted">Descripción</label>
                   <textarea name="income_desc" class="form-control form-control-sm bg-light" [(ngModel)]="newIncome.description"></textarea>
                 </div>
-                <button type="submit" class="btn btn-sm btn-primary w-100 py-2 shadow-sm mt-2" [disabled]="!incomeForm.valid || loadingIncome">
-                  <span *ngIf="!loadingIncome"><i class="bi bi-cash-stack me-2"></i> Guardar Ingreso</span>
-                  <span *ngIf="loadingIncome" class="spinner-border spinner-border-sm"></span>
-                </button>
+                <div class="d-grid gap-2 mt-2">
+                  <button type="submit" class="btn btn-sm btn-primary py-2 shadow-sm" [disabled]="!incomeForm.valid || loadingIncome">
+                    <span *ngIf="!loadingIncome">
+                      <i class="bi" [ngClass]="editingIncomeId === null ? 'bi-cash-stack me-2' : 'bi-check2-square me-2'"></i>
+                      {{ editingIncomeId === null ? 'Guardar Ingreso' : 'Guardar Cambios' }}
+                    </span>
+                    <span *ngIf="loadingIncome" class="spinner-border spinner-border-sm"></span>
+                  </button>
+                  <button *ngIf="editingIncomeId !== null" type="button" class="btn btn-sm btn-outline-secondary" (click)="resetIncomeForm()">
+                    Cancelar edición
+                  </button>
+                </div>
               </form>
             </div>
           </div>
@@ -171,6 +202,7 @@
                       <th class="px-4 py-3 border-0">Fecha</th>
                       <th class="py-3 border-0">Fuente</th>
                       <th class="py-3 border-0">Registrado por</th>
+                      <th class="py-3 border-0 text-center">Acciones</th>
                       <th class="text-end px-4 py-3 border-0">Monto</th>
                     </tr>
                   </thead>
@@ -179,10 +211,18 @@
                       <td class="px-4 text-muted">{{ income.income_date }}</td>
                       <td class="fw-bold text-dark">{{ income.source }}</td>
                       <td class="text-muted">{{ income.user_name }}</td>
+                      <td class="text-center">
+                        <button type="button" class="btn btn-sm btn-outline-primary me-2" (click)="onEditIncome(income)">
+                          <i class="bi bi-pencil"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-danger" (click)="onDeleteIncome(income)">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </td>
                       <td class="text-end px-4 fw-bold text-success">+{{ income.amount | currency }}</td>
                     </tr>
                     <tr *ngIf="incomeRecords.length === 0">
-                      <td colspan="4" class="text-center py-5 text-muted">No se han registrado ingresos aún</td>
+                      <td colspan="5" class="text-center py-5 text-muted">No se han registrado ingresos aún</td>
                     </tr>
                   </tbody>
                 </table>

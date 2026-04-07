@@ -108,4 +108,57 @@ class MobileCardsRepository {
   Future<void> deleteCard(int cardId) async {
     await _apiClient.delete('/cards_loans/cards/$cardId');
   }
+
+  Future<void> createLoan({
+    int? bankId,
+    required String description,
+    String? owner,
+    required double initialAmount,
+    required int totalInstallments,
+    required int pendingInstallments,
+    required double monthlyPayment,
+    double? interestRate,
+    String? startDate,
+  }) async {
+    await _apiClient.post('/cards_loans/loans', {
+      'bank_id': bankId,
+      'description': description,
+      'owner': owner,
+      'initial_amount': initialAmount,
+      'total_installments': totalInstallments,
+      'pending_installments': pendingInstallments,
+      'monthly_payment': monthlyPayment,
+      'interest_rate': interestRate,
+      'start_date': startDate,
+    });
+  }
+
+  Future<void> updateLoan({
+    required int loanId,
+    int? bankId,
+    required String description,
+    String? owner,
+    required double initialAmount,
+    required int totalInstallments,
+    required int pendingInstallments,
+    required double monthlyPayment,
+    double? interestRate,
+    String? startDate,
+  }) async {
+    await _apiClient.put('/cards_loans/loans/$loanId', {
+      'bank_id': bankId,
+      'description': description,
+      'owner': owner,
+      'initial_amount': initialAmount,
+      'total_installments': totalInstallments,
+      'pending_installments': pendingInstallments,
+      'monthly_payment': monthlyPayment,
+      'interest_rate': interestRate,
+      'start_date': startDate,
+    });
+  }
+
+  Future<void> deleteLoan(int loanId) async {
+    await _apiClient.delete('/cards_loans/loans/$loanId');
+  }
 }

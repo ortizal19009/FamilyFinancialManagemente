@@ -99,6 +99,14 @@ export class ApiService {
     return this.http.post(`${this.apiUrl}/planning/`, plan);
   }
 
+  updatePlanning(id: number, plan: any): Observable<any> {
+    return this.http.put(`${this.apiUrl}/planning/${id}`, plan);
+  }
+
+  deletePlanning(id: number): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/planning/${id}`);
+  }
+
   // --- Tarjetas y Préstamos ---
   getCards(): Observable<any[]> {
     return this.http.get<any[]>(`${this.apiUrl}/cards_loans/cards`);
@@ -124,6 +132,14 @@ export class ApiService {
     return this.http.post(`${this.apiUrl}/cards_loans/loans`, loan);
   }
 
+  updateLoan(id: number, loan: any): Observable<any> {
+    return this.http.put(`${this.apiUrl}/cards_loans/loans/${id}`, loan);
+  }
+
+  deleteLoan(id: number): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/cards_loans/loans/${id}`);
+  }
+
   // --- Activos e Ingresos ---
   getAssets(): Observable<any[]> {
     return this.http.get<any[]>(`${this.apiUrl}/assets_income/assets`);
@@ -137,8 +153,24 @@ export class ApiService {
     return this.http.post(`${this.apiUrl}/assets_income/assets`, asset);
   }
 
+  updateAsset(id: number, asset: any): Observable<any> {
+    return this.http.put(`${this.apiUrl}/assets_income/assets/${id}`, asset);
+  }
+
+  deleteAsset(id: number): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/assets_income/assets/${id}`);
+  }
+
   createIncome(income: any): Observable<any> {
     return this.http.post(`${this.apiUrl}/assets_income/income`, income);
+  }
+
+  updateIncome(id: number, income: any): Observable<any> {
+    return this.http.put(`${this.apiUrl}/assets_income/income/${id}`, income);
+  }
+
+  deleteIncome(id: number): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/assets_income/income/${id}`);
   }
 
   // --- Inversiones ---
@@ -169,6 +201,26 @@ export class ApiService {
 
   updateDebtorStatus(id: number, data: any): Observable<any> {
     return this.http.put(`${this.apiUrl}/debtors/${id}`, data);
+  }
+
+  deleteDebtor(id: number): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/debtors/${id}`);
+  }
+
+  getSmallDebts(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/debtors/small-debts`);
+  }
+
+  createSmallDebt(debt: any): Observable<any> {
+    return this.http.post(`${this.apiUrl}/debtors/small-debts`, debt);
+  }
+
+  updateSmallDebt(id: number, debt: any): Observable<any> {
+    return this.http.put(`${this.apiUrl}/debtors/small-debts/${id}`, debt);
+  }
+
+  deleteSmallDebt(id: number): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/debtors/small-debts/${id}`);
   }
 
   // --- Miembros de la Familia ---

@@ -19,3 +19,7 @@ class Config:
     JWT_TOKEN_LOCATION = ['headers']
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER') or os.path.join(basedir, 'uploads')
     MAX_CONTENT_LENGTH = 10 * 1024 * 1024
+    DEFAULT_ADMIN_ENABLED = os.environ.get('DEFAULT_ADMIN_ENABLED', 'true').lower() == 'true'
+    DEFAULT_ADMIN_NAME = os.environ.get('DEFAULT_ADMIN_NAME') or 'Administrador'
+    DEFAULT_ADMIN_EMAIL = os.environ.get('DEFAULT_ADMIN_EMAIL') or 'admin@localhost.com'
+    DEFAULT_ADMIN_PASSWORD = os.environ.get('DEFAULT_ADMIN_PASSWORD') or 'admin'

@@ -275,19 +275,29 @@ class _AssetsIncomeScreenState extends State<AssetsIncomeScreen> {
                 leading: const Icon(Icons.home_work_rounded),
                 title: Text(asset.name),
                 subtitle: Text('${asset.owner ?? 'Sin propietario'} · ${asset.purchaseDate ?? 'Sin fecha'}'),
-                trailing: PopupMenuButton<String>(
-                  onSelected: (value) {
-                    if (value == 'edit') {
-                      _openAssetDialog(asset: asset);
-                    } else if (value == 'delete') {
-                      _deleteAsset(asset);
-                    }
-                  },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(value: 'edit', child: Text('Editar')),
-                    PopupMenuItem(value: 'delete', child: Text('Eliminar')),
-                  ],
-                  child: Text('\$${asset.value.toStringAsFixed(2)}'),
+                trailing: SizedBox(
+                  width: 168,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '\$${asset.value.toStringAsFixed(2)}',
+                          textAlign: TextAlign.end,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Editar',
+                        onPressed: () => _openAssetDialog(asset: asset),
+                        icon: const Icon(Icons.edit_outlined),
+                      ),
+                      IconButton(
+                        tooltip: 'Eliminar',
+                        onPressed: () => _deleteAsset(asset),
+                        icon: const Icon(Icons.delete_outline),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -308,19 +318,29 @@ class _AssetsIncomeScreenState extends State<AssetsIncomeScreen> {
                 leading: const Icon(Icons.trending_up_rounded),
                 title: Text(income.source),
                 subtitle: Text('${income.userName ?? 'Sin usuario'} · ${income.incomeDate}'),
-                trailing: PopupMenuButton<String>(
-                  onSelected: (value) {
-                    if (value == 'edit') {
-                      _openIncomeDialog(income: income);
-                    } else if (value == 'delete') {
-                      _deleteIncome(income);
-                    }
-                  },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(value: 'edit', child: Text('Editar')),
-                    PopupMenuItem(value: 'delete', child: Text('Eliminar')),
-                  ],
-                  child: Text('\$${income.amount.toStringAsFixed(2)}'),
+                trailing: SizedBox(
+                  width: 168,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '\$${income.amount.toStringAsFixed(2)}',
+                          textAlign: TextAlign.end,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Editar',
+                        onPressed: () => _openIncomeDialog(income: income),
+                        icon: const Icon(Icons.edit_outlined),
+                      ),
+                      IconButton(
+                        tooltip: 'Eliminar',
+                        onPressed: () => _deleteIncome(income),
+                        icon: const Icon(Icons.delete_outline),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

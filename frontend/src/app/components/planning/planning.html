@@ -55,6 +55,7 @@
                   <th class="py-3 border-0 text-center">Presupuestado</th>
                   <th class="py-3 border-0 text-center">Gasto Real</th>
                   <th class="py-3 border-0" style="width: 250px;">Progreso</th>
+                  <th class="py-3 border-0 text-center">Acciones</th>
                   <th class="text-end px-4 py-3 border-0">Restante</th>
                 </tr>
               </thead>
@@ -76,12 +77,30 @@
                       </span>
                     </div>
                   </td>
+                  <td class="text-center">
+                    <div class="d-flex justify-content-center gap-2">
+                      <button
+                        type="button"
+                        class="btn btn-outline-primary btn-sm"
+                        data-bs-toggle="modal"
+                        data-bs-target="#newPlanModal"
+                        (click)="onEditPlan(plan)">
+                        <i class="bi bi-pencil"></i>
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-outline-danger btn-sm"
+                        (click)="onDeletePlan(plan)">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  </td>
                   <td class="text-end px-4 fw-bold" [ngClass]="plan.remaining < 0 ? 'text-danger' : 'text-success'">
                     {{ plan.remaining | currency }}
                   </td>
                 </tr>
                 <tr *ngIf="planningData.length === 0">
-                  <td colspan="5" class="text-center py-5 text-muted">
+                  <td colspan="6" class="text-center py-5 text-muted">
                     <i class="bi bi-calendar-x display-4 d-block mb-3 opacity-25"></i>
                     No hay presupuestos definidos para este mes
                   </td>
@@ -98,9 +117,9 @@
 <!-- New Plan Modal -->
 <div class="modal fade" id="newPlanModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered modal-sm">
-    <div class="modal-content border-0 shadow">
+      <div class="modal-content border-0 shadow">
       <div class="modal-header border-0 bg-primary text-white">
-        <h6 class="modal-title fw-bold">Definir Presupuesto</h6>
+        <h6 class="modal-title fw-bold">{{ editingPlanId === null ? 'Definir Presupuesto' : 'Editar Presupuesto' }}</h6>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body p-4">
@@ -119,7 +138,16 @@
               <input type="number" name="amount" class="form-control bg-light border-start-0" [(ngModel)]="newPlan.planned_amount" required>
             </div>
           </div>
-          <button type="submit" class="btn btn-sm btn-primary w-100 py-2 shadow-sm" [disabled]="!planForm.valid || loading" data-bs-dismiss="modal">
+          <div *ngIf="editingPlanId !== null" class="d-flex gap-2 mb-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary w-50" (click)="onCancelEdit()" data-bs-dismiss="modal">
+              Cancelar
+            </button>
+            <button type="submit" class="btn btn-sm btn-primary w-50 py-2 shadow-sm" [disabled]="!planForm.valid || loading" data-bs-dismiss="modal">
+              <span *ngIf="!loading">Actualizar</span>
+              <span *ngIf="loading" class="spinner-border spinner-border-sm"></span>
+            </button>
+          </div>
+          <button *ngIf="editingPlanId === null" type="submit" class="btn btn-sm btn-primary w-100 py-2 shadow-sm" [disabled]="!planForm.valid || loading" data-bs-dismiss="modal">
             <span *ngIf="!loading">Guardar Presupuesto</span>
             <span *ngIf="loading" class="spinner-border spinner-border-sm"></span>
           </button>

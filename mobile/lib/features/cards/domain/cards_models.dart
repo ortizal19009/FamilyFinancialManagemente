@@ -57,6 +57,7 @@ class CardSummary {
 class LoanSummary {
   const LoanSummary({
     required this.id,
+    required this.bankId,
     required this.bankName,
     required this.description,
     required this.owner,
@@ -68,6 +69,7 @@ class LoanSummary {
   });
 
   final int id;
+  final int? bankId;
   final String bankName;
   final String description;
   final String? owner;
@@ -80,6 +82,7 @@ class LoanSummary {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
+      'bank_id': bankId,
       'bank_name': bankName,
       'description': description,
       'owner': owner,
@@ -94,6 +97,7 @@ class LoanSummary {
   factory LoanSummary.fromMap(Map<String, dynamic> map) {
     return LoanSummary(
       id: map['id'] as int? ?? 0,
+      bankId: map['bank_id'] as int?,
       bankName: map['bank_name'] as String? ?? '',
       description: map['description'] as String? ?? '',
       owner: map['owner'] as String?,

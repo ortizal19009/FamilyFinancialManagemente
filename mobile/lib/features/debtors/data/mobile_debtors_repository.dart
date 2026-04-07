@@ -13,22 +13,36 @@ class MobileDebtorsRepository {
   final LocalCacheStorage _cacheStorage;
 
   static const _debtorsCacheKey = 'mobile_debtors_cache';
+  static const _smallDebtsCacheKey = 'mobile_small_debts_cache';
 
-  Future<(List<DebtorSummary>, bool)> loadDebtors() async {
+  Future<(List<DebtorSummary>, List<SmallDebtSummary>, bool)> loadDebtors() async {
     try {
       final response = await _apiClient.get('/debtors/');
+      final smallDebtsResponse = await _apiClient.get('/debtors/small-debts');
       final debtors = (response as List<dynamic>)
           .map((item) => DebtorSummary.fromMap(Map<String, dynamic>.from(item as Map)))
+          .toList();
+      final smallDebts = (smallDebtsResponse as List<dynamic>)
+          .map((item) => SmallDebtSummary.fromMap(Map<String, dynamic>.from(item as Map)))
           .toList();
 
       await _cacheStorage.saveCollection(
         _debtorsCacheKey,
         debtors.map((item) => item.toMap()).toList(),
       );
-      return (debtors, false);
+      await _cacheStorage.saveCollection(
+        _smallDebtsCacheKey,
+        smallDebts.map((item) => item.toMap()).toList(),
+      );
+      return (debtors, smallDebts, false);
     } catch (_) {
       final cached = await _cacheStorage.getCollection(_debtorsCacheKey);
-      return (cached.map(DebtorSummary.fromMap).toList(), true);
+      final cachedSmallDebts = await _cacheStorage.getCollection(_smallDebtsCacheKey);
+      return (
+        cached.map(DebtorSummary.fromMap).toList(),
+        cachedSmallDebts.map(SmallDebtSummary.fromMap).toList(),
+        true,
+      );
     }
   }
 
@@ -67,5 +81,46 @@ class MobileDebtorsRepository {
 
   Future<void> deleteDebtor(int id) async {
     await _apiClient.delete('/debtors/$id');
+  }
+
+  Future<void> createSmallDebt({
+    required String lenderName,
+    required double amount,
+    String? description,
+    String? borrowedDate,
+    String? dueDate,
+    String status = 'pendiente',
+  }) async {
+    await _apiClient.post('/debtors/small-debts', {
+      'lender_name': lenderName,
+      'amount': amount,
+      'description': description,
+      'borrowed_date': borrowedDate,
+      'due_date': dueDate,
+      'status': status,
+    });
+  }
+
+  Future<void> updateSmallDebt({
+    required int id,
+    required String lenderName,
+    required double amount,
+    String? description,
+    String? borrowedDate,
+    String? dueDate,
+    required String status,
+  }) async {
+    await _apiClient.put('/debtors/small-debts/$id', {
+      'lender_name': lenderName,
+      'amount': amount,
+      'description': description,
+      'borrowed_date': borrowedDate,
+      'due_date': dueDate,
+      'status': status,
+    });
+  }
+
+  Future<void> deleteSmallDebt(int id) async {
+    await _apiClient.delete('/debtors/small-debts/$id');
   }
 }

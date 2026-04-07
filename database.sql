@@ -141,6 +141,19 @@ CREATE TABLE IF NOT EXISTS debtors (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 10.1 Tabla de Deudas Pequeñas (Dinero que debemos a amigos, familiares, etc.)
+CREATE TABLE IF NOT EXISTS small_debts (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    lender_name VARCHAR(100) NOT NULL,
+    amount DECIMAL(15, 2) NOT NULL,
+    description TEXT,
+    borrowed_date DATE,
+    due_date DATE,
+    status VARCHAR(20) DEFAULT 'pendiente',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 11. Tabla de Gastos Diarios
 CREATE TABLE IF NOT EXISTS expenses (
     id SERIAL PRIMARY KEY,

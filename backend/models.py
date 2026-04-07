@@ -143,12 +143,30 @@ class Income(db.Model):
 class Debtor(db.Model):
     __tablename__ = 'debtors'
     id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'))
     name = db.Column(db.String(100), nullable=False)
     amount_owed = db.Column(db.Numeric(15, 2), nullable=False)
     description = db.Column(db.Text)
     due_date = db.Column(db.Date)
     status = db.Column(db.String(20), default='pendiente')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref='debtors', lazy=True)
+
+
+class SmallDebt(db.Model):
+    __tablename__ = 'small_debts'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'))
+    lender_name = db.Column(db.String(100), nullable=False)
+    amount = db.Column(db.Numeric(15, 2), nullable=False)
+    description = db.Column(db.Text)
+    borrowed_date = db.Column(db.Date)
+    due_date = db.Column(db.Date)
+    status = db.Column(db.String(20), default='pendiente')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref='small_debts', lazy=True)
 
 class Expense(db.Model):
     __tablename__ = 'expenses'

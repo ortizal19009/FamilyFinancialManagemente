@@ -4,13 +4,40 @@ from flask import Flask, g, jsonify, request
 from flask_cors import CORS
 from flask_migrate import Migrate
 from flask_jwt_extended import JWTManager
+from sqlalchemy.exc import SQLAlchemyError
 
 try:
     from backend.config import Config
-    from backend.models import db
+    from backend.models import User, db
 except ModuleNotFoundError:
     from config import Config
-    from models import db
+    from models import User, db
+
+
+def ensure_default_admin(app):
+    if not app.config.get('DEFAULT_ADMIN_ENABLED', True):
+        return
+
+    default_admin_email = app.config.get('DEFAULT_ADMIN_EMAIL', 'admin@localhost.com')
+    default_admin_name = app.config.get('DEFAULT_ADMIN_NAME', 'Administrador')
+    default_admin_password = app.config.get('DEFAULT_ADMIN_PASSWORD', 'admin')
+
+    try:
+        admin_user = User.query.filter_by(email=default_admin_email).first()
+        if admin_user:
+            return
+
+        admin_user = User(
+            full_name=default_admin_name,
+            email=default_admin_email,
+            role='admin',
+        )
+        admin_user.set_password(default_admin_password)
+        db.session.add(admin_user)
+        db.session.commit()
+        print(f'Usuario admin por defecto creado: {default_admin_email}')
+    except SQLAlchemyError:
+        db.session.rollback()
 
 def create_app(config_class=Config):
     app = Flask(__name__)
@@ -86,6 +113,9 @@ def create_app(config_class=Config):
             elapsed_ms = (time.perf_counter() - start_time) * 1000
             print(f"{request.method} {request.path} -> {response.status_code} [{elapsed_ms:.2f} ms]")
         return response
+
+    with app.app_context():
+        ensure_default_admin(app)
 
     return app
 

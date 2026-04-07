@@ -15,6 +15,7 @@ export class PlanningComponent implements OnInit {
 
   planningData: any[] = [];
   categories: any[] = [];
+  editingPlanId: number | null = null;
   
   selectedMonth: number = new Date().getMonth() + 1;
   selectedYear: number = new Date().getFullYear();
@@ -60,19 +61,72 @@ export class PlanningComponent implements OnInit {
 
   onSavePlan() {
     this.loading = true;
-    this.apiService.savePlanning(this.newPlan).subscribe({
+    const request$ = this.editingPlanId === null
+      ? this.apiService.savePlanning(this.newPlan)
+      : this.apiService.updatePlanning(this.editingPlanId, this.newPlan);
+
+    request$.subscribe({
       next: () => {
-        this.successMsg = 'Presupuesto guardado correctamente';
+        this.successMsg = this.editingPlanId === null
+          ? 'Presupuesto guardado correctamente'
+          : 'Presupuesto actualizado correctamente';
         this.loadPlanning();
+        this.resetPlanForm();
         this.loading = false;
         setTimeout(() => this.successMsg = '', 3000);
       },
-      error: () => {
-        this.errorMsg = 'Error al guardar el presupuesto';
+      error: (error) => {
+        this.errorMsg = error?.error?.msg || 'Error al guardar el presupuesto';
         this.loading = false;
         setTimeout(() => this.errorMsg = '', 3000);
       }
     });
+  }
+
+  onEditPlan(plan: any) {
+    this.editingPlanId = plan.id;
+    this.newPlan = {
+      category_id: plan.category_id ?? null,
+      planned_amount: plan.planned_amount ?? 0,
+      month: plan.month ?? this.selectedMonth,
+      year: plan.year ?? this.selectedYear
+    };
+  }
+
+  onDeletePlan(plan: any) {
+    const confirmed = window.confirm(`¿Deseas eliminar el presupuesto de "${plan.category_name}"?`);
+    if (!confirmed) {
+      return;
+    }
+
+    this.apiService.deletePlanning(plan.id).subscribe({
+      next: () => {
+        this.successMsg = 'Presupuesto eliminado correctamente';
+        if (this.editingPlanId === plan.id) {
+          this.resetPlanForm();
+        }
+        this.loadPlanning();
+        setTimeout(() => this.successMsg = '', 3000);
+      },
+      error: (error) => {
+        this.errorMsg = error?.error?.msg || 'Error al eliminar el presupuesto';
+        setTimeout(() => this.errorMsg = '', 3000);
+      }
+    });
+  }
+
+  onCancelEdit() {
+    this.resetPlanForm();
+  }
+
+  private resetPlanForm() {
+    this.editingPlanId = null;
+    this.newPlan = {
+      category_id: null,
+      planned_amount: 0,
+      month: this.selectedMonth,
+      year: this.selectedYear
+    };
   }
 
   getProgressBarClass(planned: number, actual: number): string {

@@ -12,6 +12,7 @@ class PlanningScreen extends StatefulWidget {
 
 class _PlanningScreenState extends State<PlanningScreen> {
   final _repository = PlanningRepository();
+  final _yearController = TextEditingController();
   List<Map<String, dynamic>> _plans = [];
   List<ExpenseCategory> _categories = [];
   bool _loading = true;
@@ -22,7 +23,14 @@ class _PlanningScreenState extends State<PlanningScreen> {
   @override
   void initState() {
     super.initState();
+    _yearController.text = _year.toString();
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _yearController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -121,6 +129,30 @@ class _PlanningScreenState extends State<PlanningScreen> {
   }
 
   Future<void> _deletePlan(Map<String, dynamic> plan) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Eliminar presupuesto'),
+        content: Text(
+          'Se eliminara el presupuesto de "${plan['category_name'] ?? 'esta categoria'}".',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
     try {
       await _repository.deletePlan(plan['id'] as int);
       _message = 'Presupuesto eliminado correctamente';
@@ -169,7 +201,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: TextField(
-                          controller: TextEditingController(text: _year.toString()),
+                          controller: _yearController,
                           keyboardType: TextInputType.number,
                           decoration: const InputDecoration(labelText: 'Anio'),
                           onSubmitted: (value) {
@@ -216,18 +248,23 @@ class _PlanningScreenState extends State<PlanningScreen> {
                 subtitle: Text(
                   'Planificado: \$${((plan['planned_amount'] as num?) ?? 0).toStringAsFixed(2)} · Ejecutado: \$${((plan['actual_amount'] as num?) ?? 0).toStringAsFixed(2)}',
                 ),
-                trailing: PopupMenuButton<String>(
-                  onSelected: (value) {
-                    if (value == 'edit') {
-                      _openPlanDialog(plan: plan);
-                    } else if (value == 'delete') {
-                      _deletePlan(plan);
-                    }
-                  },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(value: 'edit', child: Text('Editar')),
-                    PopupMenuItem(value: 'delete', child: Text('Eliminar')),
-                  ],
+                trailing: SizedBox(
+                  width: 108,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      IconButton(
+                        tooltip: 'Editar',
+                        onPressed: () => _openPlanDialog(plan: plan),
+                        icon: const Icon(Icons.edit_outlined),
+                      ),
+                      IconButton(
+                        tooltip: 'Eliminar',
+                        onPressed: () => _deletePlan(plan),
+                        icon: const Icon(Icons.delete_outline_rounded),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
