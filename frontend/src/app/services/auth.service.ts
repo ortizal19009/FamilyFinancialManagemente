@@ -9,6 +9,7 @@ export interface User {
   email: string;
   role: string;
   created_at?: string;
+  is_current_user?: boolean;
 }
 
 export interface AuthResponse {
@@ -62,6 +63,10 @@ export class AuthService {
 
   getUsers(): Observable<User[]> {
     return this.http.get<User[]>(`${this.apiUrl}/users`);
+  }
+
+  getFamilyLinkOptions(): Observable<User[]> {
+    return this.http.get<User[]>(`${this.apiUrl}/family-link-options`);
   }
 
   adminCreateUser(userData: any): Observable<any> {

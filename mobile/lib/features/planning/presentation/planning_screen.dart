@@ -46,7 +46,8 @@ class _PlanningScreenState extends State<PlanningScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _message = error.toString().replaceFirst('Exception: ', '');
+        _plans = [];
+        _message = null;
         _loading = false;
       });
     }
@@ -217,7 +218,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      Expanded(child: Text('Planificacion mensual', style: Theme.of(context).textTheme.titleLarge)),
+                      const Spacer(),
                       FilledButton.icon(
                         onPressed: () => _openPlanDialog(),
                         icon: const Icon(Icons.add_rounded),
@@ -238,7 +239,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
             const Card(
               child: Padding(
                 padding: EdgeInsets.all(16),
-                child: Text('No hay presupuestos cargados para este periodo.'),
+                child: Text('No hay presupuestos guardados en el celular para este periodo.'),
               ),
             ),
           ..._plans.map(

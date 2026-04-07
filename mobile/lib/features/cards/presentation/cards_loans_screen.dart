@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/app_services.dart';
 import '../../banks/domain/bank_models.dart';
 import '../data/mobile_cards_repository.dart';
 import '../domain/cards_models.dart';
@@ -43,6 +42,31 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
       _banks = banks;
       _loadedFromCache = snapshot.loadedFromCache;
       _loading = false;
+    });
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _pickDate(
+    BuildContext dialogContext,
+    TextEditingController controller,
+    void Function(void Function()) setDialogState,
+  ) async {
+    final initialDate = DateTime.tryParse(controller.text) ?? DateTime.now();
+    final pickedDate = await showDatePicker(
+      context: dialogContext,
+      initialDate: initialDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (pickedDate == null) {
+      return;
+    }
+
+    setDialogState(() {
+      controller.text = _formatDate(pickedDate);
     });
   }
 
@@ -335,7 +359,12 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
                     const SizedBox(height: 12),
                     TextField(
                       controller: startDateController,
-                      decoration: const InputDecoration(labelText: 'Fecha inicio (YYYY-MM-DD)'),
+                      readOnly: true,
+                      onTap: () => _pickDate(context, startDateController, setDialogState),
+                      decoration: const InputDecoration(
+                        labelText: 'Fecha inicio',
+                        suffixIcon: Icon(Icons.calendar_month_rounded),
+                      ),
                     ),
                   ],
                 ),
@@ -455,54 +484,35 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
-          AnimatedBuilder(
-            animation: AppServices.syncService,
-            builder: (context, _) {
-              final syncStatus = AppServices.syncService.status;
-              return Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Tarjetas y prestamos',
-                              style: Theme.of(context).textTheme.titleLarge,
-                            ),
-                          ),
-                          FilledButton.icon(
-                            onPressed: _saving ? null : () => _openCardDialog(),
-                            icon: const Icon(Icons.add_rounded),
-                            label: const Text('Tarjeta'),
-                          ),
-                          const SizedBox(width: 8),
-                          FilledButton.icon(
-                            onPressed: _saving ? null : () => _openLoanDialog(),
-                            icon: const Icon(Icons.request_quote_rounded),
-                            label: const Text('Prestamo'),
-                          ),
-                        ],
+                      const Spacer(),
+                      FilledButton.icon(
+                        onPressed: _saving ? null : () => _openCardDialog(),
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('Tarjeta'),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _loadedFromCache
-                            ? 'Mostrando la ultima informacion guardada localmente.'
-                            : 'Datos cargados desde el backend.',
+                      const SizedBox(width: 8),
+                      FilledButton.icon(
+                        onPressed: _saving ? null : () => _openLoanDialog(),
+                        icon: const Icon(Icons.request_quote_rounded),
+                        label: const Text('Prestamo'),
                       ),
-                      const SizedBox(height: 8),
-                      Text(syncStatus.isOnline ? 'Backend disponible.' : 'Sin acceso al backend.'),
-                      if (_message != null) ...[
-                        const SizedBox(height: 12),
-                        Text(_message!),
-                      ],
                     ],
                   ),
-                ),
-              );
-            },
+                  if (_message != null) ...[
+                    const SizedBox(height: 12),
+                    Text(_message!),
+                  ],
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 16),
           Text('Tarjetas', style: Theme.of(context).textTheme.titleLarge),
@@ -511,7 +521,7 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
             const Card(
               child: Padding(
                 padding: EdgeInsets.all(16),
-                child: Text('Todavia no hay tarjetas sincronizadas.'),
+                child: Text('Todavia no hay tarjetas guardadas en el celular.'),
               ),
             ),
           ..._cards.map(
@@ -550,7 +560,7 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
             const Card(
               child: Padding(
                 padding: EdgeInsets.all(16),
-                child: Text('Todavia no hay prestamos sincronizados.'),
+                child: Text('Todavia no hay prestamos guardados en el celular.'),
               ),
             ),
           ..._loans.map(

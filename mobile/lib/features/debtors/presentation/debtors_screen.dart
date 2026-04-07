@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/app_services.dart';
 import '../data/mobile_debtors_repository.dart';
 import '../domain/debtor_models.dart';
 
@@ -37,6 +36,31 @@ class _DebtorsScreenState extends State<DebtorsScreen> {
     });
   }
 
+  String _formatDate(DateTime date) {
+    return '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _pickDate(
+    BuildContext dialogContext,
+    TextEditingController controller,
+    void Function(void Function()) setDialogState,
+  ) async {
+    final initialDate = DateTime.tryParse(controller.text) ?? DateTime.now();
+    final pickedDate = await showDatePicker(
+      context: dialogContext,
+      initialDate: initialDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (pickedDate == null) {
+      return;
+    }
+
+    setDialogState(() {
+      controller.text = _formatDate(pickedDate);
+    });
+  }
+
   Future<void> _openDebtorDialog({DebtorSummary? debtor}) async {
     final nameController = TextEditingController(text: debtor?.name ?? '');
     final amountController = TextEditingController(
@@ -66,7 +90,12 @@ class _DebtorsScreenState extends State<DebtorsScreen> {
                   const SizedBox(height: 12),
                   TextField(
                     controller: dueDateController,
-                    decoration: const InputDecoration(labelText: 'Vence (YYYY-MM-DD)'),
+                    readOnly: true,
+                    onTap: () => _pickDate(context, dueDateController, setDialogState),
+                    decoration: const InputDecoration(
+                      labelText: 'Vence',
+                      suffixIcon: Icon(Icons.calendar_month_rounded),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
@@ -170,12 +199,22 @@ class _DebtorsScreenState extends State<DebtorsScreen> {
                   const SizedBox(height: 12),
                   TextField(
                     controller: borrowedDateController,
-                    decoration: const InputDecoration(labelText: 'Fecha prestamo (YYYY-MM-DD)'),
+                    readOnly: true,
+                    onTap: () => _pickDate(context, borrowedDateController, setDialogState),
+                    decoration: const InputDecoration(
+                      labelText: 'Fecha prestamo',
+                      suffixIcon: Icon(Icons.calendar_month_rounded),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: dueDateController,
-                    decoration: const InputDecoration(labelText: 'Vence (YYYY-MM-DD)'),
+                    readOnly: true,
+                    onTap: () => _pickDate(context, dueDateController, setDialogState),
+                    decoration: const InputDecoration(
+                      labelText: 'Vence',
+                      suffixIcon: Icon(Icons.calendar_month_rounded),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
@@ -264,30 +303,19 @@ class _DebtorsScreenState extends State<DebtorsScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           children: [
-            AnimatedBuilder(
-              animation: AppServices.syncService,
-              builder: (context, _) {
-                final syncStatus = AppServices.syncService.status;
-                return Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Deudores y deudas pequenas', style: Theme.of(context).textTheme.titleLarge),
-                        const SizedBox(height: 8),
-                        Text(_loadedFromCache ? 'Mostrando la ultima informacion guardada localmente.' : 'Datos cargados desde el backend.'),
-                        const SizedBox(height: 8),
-                        Text(syncStatus.isOnline ? 'Backend disponible.' : 'Sin acceso al backend.'),
-                        if (_message != null) ...[
-                          const SizedBox(height: 12),
-                          Text(_message!),
-                        ],
-                      ],
-                    ),
-                  ),
-                );
-              },
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (_message != null) ...[
+                      const SizedBox(height: 12),
+                      Text(_message!),
+                    ],
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: 16),
             const TabBar(
@@ -316,7 +344,7 @@ class _DebtorsScreenState extends State<DebtorsScreen> {
                         const Card(
                           child: Padding(
                             padding: EdgeInsets.all(16),
-                            child: Text('Todavia no hay deudores sincronizados.'),
+                            child: Text('Todavia no hay deudores guardados en el celular.'),
                           ),
                         ),
                       ..._debtors.map(
@@ -368,7 +396,7 @@ class _DebtorsScreenState extends State<DebtorsScreen> {
                         const Card(
                           child: Padding(
                             padding: EdgeInsets.all(16),
-                            child: Text('Todavia no hay deudas pequenas sincronizadas.'),
+                            child: Text('Todavia no hay deudas pequenas guardadas en el celular.'),
                           ),
                         ),
                       ..._smallDebts.map(

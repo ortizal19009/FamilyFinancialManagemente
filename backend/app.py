@@ -5,6 +5,7 @@ from flask_cors import CORS
 from flask_migrate import Migrate
 from flask_jwt_extended import JWTManager
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import inspect, text
 
 try:
     from backend.config import Config
@@ -38,6 +39,28 @@ def ensure_default_admin(app):
         print(f'Usuario admin por defecto creado: {default_admin_email}')
     except SQLAlchemyError:
         db.session.rollback()
+
+def ensure_family_schema():
+    inspector = inspect(db.engine)
+    columns = {column['name'] for column in inspector.get_columns('family_members')}
+
+    if 'user_id' not in columns:
+        db.session.execute(text('ALTER TABLE family_members ADD COLUMN user_id INTEGER'))
+        db.session.commit()
+
+    tables = set(inspector.get_table_names())
+    if 'family_relationships' not in tables:
+        db.session.execute(text('''
+            CREATE TABLE family_relationships (
+                id SERIAL PRIMARY KEY,
+                source_member_id INTEGER NOT NULL REFERENCES family_members(id) ON DELETE CASCADE,
+                target_member_id INTEGER NOT NULL REFERENCES family_members(id) ON DELETE CASCADE,
+                relationship VARCHAR(50) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT uq_family_relationship_pair UNIQUE (source_member_id, target_member_id)
+            )
+        '''))
+        db.session.commit()
 
 def create_app(config_class=Config):
     app = Flask(__name__)
@@ -115,6 +138,7 @@ def create_app(config_class=Config):
         return response
 
     with app.app_context():
+        ensure_family_schema()
         ensure_default_admin(app)
 
     return app

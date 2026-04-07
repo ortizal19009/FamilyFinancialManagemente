@@ -33,7 +33,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _error = error.toString().replaceFirst('Exception: ', '');
+        _error = 'No hay datos guardados todavia en el celular.';
         _loading = false;
       });
     }

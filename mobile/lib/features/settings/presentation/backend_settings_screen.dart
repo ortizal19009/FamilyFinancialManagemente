@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/config/api_config.dart';
+import '../../../core/app_services.dart';
+import '../../../core/offline/backup_service.dart';
 import '../../../core/offline/backend_reachability_service.dart';
 
 class BackendSettingsScreen extends StatefulWidget {
@@ -13,8 +15,11 @@ class BackendSettingsScreen extends StatefulWidget {
 class _BackendSettingsScreenState extends State<BackendSettingsScreen> {
   final _controller = TextEditingController();
   final _reachabilityService = BackendReachabilityService();
+  final _backupService = BackupService();
   bool _loading = true;
   bool _checkingConnection = false;
+  bool _exporting = false;
+  bool _importing = false;
   String? _message;
 
   @override
@@ -66,6 +71,64 @@ class _BackendSettingsScreenState extends State<BackendSettingsScreen> {
           ? 'Conexion exitosa con el servidor'
           : 'No se pudo conectar con el servidor';
     });
+  }
+
+  Future<void> _exportBackup() async {
+    setState(() {
+      _exporting = true;
+      _message = 'Generando respaldo...';
+    });
+
+    try {
+      final path = await _backupService.exportBackup();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _message = 'Respaldo exportado. Archivo generado: $path';
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _message = error.toString().replaceFirst('Exception: ', '');
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _exporting = false);
+      }
+    }
+  }
+
+  Future<void> _importBackup() async {
+    setState(() {
+      _importing = true;
+      _message = 'Importando respaldo...';
+    });
+
+    try {
+      await _backupService.importBackup();
+      await AppServices.syncService.refreshState();
+      await _loadCurrentValue();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _message = 'Respaldo importado correctamente';
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _message = error.toString().replaceFirst('Exception: ', '');
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _importing = false);
+      }
+    }
   }
 
   @override
@@ -152,6 +215,61 @@ class _BackendSettingsScreenState extends State<BackendSettingsScreen> {
                                     : 'Comprobar conectividad con el servidor',
                               ),
                             ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Respaldo local',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Exporta tu data local a un archivo JSON para guardarla como backup o restaurarla en otro celular.',
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: FilledButton.icon(
+                                  onPressed: _exporting || _importing ? null : _exportBackup,
+                                  icon: _exporting
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        )
+                                      : const Icon(Icons.upload_file_rounded),
+                                  label: Text(_exporting ? 'Exportando...' : 'Exportar data'),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _exporting || _importing ? null : _importBackup,
+                                  icon: _importing
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        )
+                                      : const Icon(Icons.download_rounded),
+                                  label: Text(_importing ? 'Importando...' : 'Importar data'),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Si una version nueva agrega campos, al importar se conservara lo existente y los campos faltantes quedaran vacios hasta que los completes manualmente.',
                           ),
                         ],
                       ),

@@ -32,7 +32,8 @@ class _FamilyScreenState extends State<FamilyScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _message = error.toString().replaceFirst('Exception: ', '');
+        _members = [];
+        _message = null;
         _loading = false;
       });
     }
@@ -41,6 +42,9 @@ class _FamilyScreenState extends State<FamilyScreen> {
   Future<void> _openMemberDialog({Map<String, dynamic>? member}) async {
     final nameController = TextEditingController(text: member?['name']?.toString() ?? '');
     final relationshipController = TextEditingController(text: member?['relationship']?.toString() ?? 'Yo');
+    final linkedEmailController = TextEditingController(
+      text: member?['linked_user_email']?.toString() ?? '',
+    );
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -58,6 +62,14 @@ class _FamilyScreenState extends State<FamilyScreen> {
               controller: relationshipController,
               decoration: const InputDecoration(labelText: 'Parentesco'),
             ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: linkedEmailController,
+              decoration: const InputDecoration(
+                labelText: 'Correo de su cuenta',
+                hintText: 'Opcional, para vincular su usuario',
+              ),
+            ),
           ],
         ),
         actions: [
@@ -74,6 +86,9 @@ class _FamilyScreenState extends State<FamilyScreen> {
         await _repository.createMember(
           name: nameController.text.trim(),
           relationship: relationshipController.text.trim(),
+          linkedUserEmail: linkedEmailController.text.trim().isEmpty
+              ? null
+              : linkedEmailController.text.trim(),
         );
         _message = 'Integrante agregado correctamente';
       } else {
@@ -81,6 +96,9 @@ class _FamilyScreenState extends State<FamilyScreen> {
           id: member['id'] as int,
           name: nameController.text.trim(),
           relationship: relationshipController.text.trim(),
+          linkedUserEmail: linkedEmailController.text.trim().isEmpty
+              ? null
+              : linkedEmailController.text.trim(),
         );
         _message = 'Integrante actualizado correctamente';
       }
@@ -119,7 +137,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
                 children: [
                   Row(
                     children: [
-                      Expanded(child: Text('Miembros de familia', style: Theme.of(context).textTheme.titleLarge)),
+                      const Spacer(),
                       FilledButton.icon(
                         onPressed: () => _openMemberDialog(),
                         icon: const Icon(Icons.add_rounded),
@@ -140,7 +158,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
             const Card(
               child: Padding(
                 padding: EdgeInsets.all(16),
-                child: Text('No hay integrantes registrados.'),
+                child: Text('No hay integrantes guardados en el celular.'),
               ),
             ),
           ..._members.map(
@@ -148,7 +166,13 @@ class _FamilyScreenState extends State<FamilyScreen> {
               child: ListTile(
                 leading: const Icon(Icons.family_restroom_rounded),
                 title: Text(member['name']?.toString() ?? ''),
-                subtitle: Text(member['relationship']?.toString() ?? ''),
+                subtitle: Text(
+                  [
+                    member['relationship']?.toString() ?? '',
+                    if ((member['linked_user_email']?.toString() ?? '').isNotEmpty)
+                      member['linked_user_email']!.toString(),
+                  ].where((item) => item.isNotEmpty).join(' · '),
+                ),
                 trailing: PopupMenuButton<String>(
                   onSelected: (value) {
                     if (value == 'edit') {

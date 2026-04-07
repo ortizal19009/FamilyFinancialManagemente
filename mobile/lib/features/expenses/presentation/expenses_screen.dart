@@ -58,6 +58,23 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     return '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 
+  Future<void> _pickDate(TextEditingController controller) async {
+    final initialDate = DateTime.tryParse(controller.text) ?? DateTime.now();
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (pickedDate == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      controller.text = _formatDate(pickedDate);
+    });
+  }
+
   Future<void> _loadData() async {
     final categories = await _repository.loadCategories();
     final expenses = await _repository.loadExpenses();
@@ -276,7 +293,12 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                     const SizedBox(height: 12),
                     TextField(
                       controller: dateController,
-                      decoration: const InputDecoration(labelText: 'Fecha (YYYY-MM-DD)'),
+                      readOnly: true,
+                      onTap: () => _pickDate(dateController),
+                      decoration: const InputDecoration(
+                        labelText: 'Fecha',
+                        suffixIcon: Icon(Icons.calendar_month_rounded),
+                      ),
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
@@ -488,240 +510,224 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return AnimatedBuilder(
-      animation: AppServices.syncService,
-      builder: (context, _) {
-        final syncStatus = AppServices.syncService.status;
-
-        return RefreshIndicator(
-          onRefresh: () async {
-            await AppServices.syncService.syncPendingOperations();
-            await _loadData();
-          },
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Registrar gasto', style: Theme.of(context).textTheme.titleLarge),
-                      const SizedBox(height: 8),
-                      Text(
-                        syncStatus.isOnline
-                            ? 'Puedes registrar un gasto con varios rubros y controlar la tarjeta o cuenta utilizada.'
-                            : 'Sin backend disponible. Los gastos sin archivo se guardaran para sincronizar luego.',
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: _descriptionController,
-                        decoration: const InputDecoration(labelText: 'Descripcion'),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _dateController,
-                        decoration: const InputDecoration(labelText: 'Fecha (YYYY-MM-DD)'),
-                      ),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        initialValue: _paymentMethod,
-                        decoration: const InputDecoration(labelText: 'Metodo de pago'),
-                        items: const [
-                          'Efectivo',
-                          'Tarjeta Crédito',
-                          'Tarjeta Débito',
-                          'Banca Móvil',
-                          'Fiado',
-                        ].map((item) => DropdownMenuItem(value: item, child: Text(item))).toList(),
-                        onChanged: (value) {
-                          if (value == null) return;
-                          _handlePaymentMethodChange(value);
-                        },
-                      ),
-                      if (_usesCard) ...[
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<int>(
-                          initialValue: _selectedCardId,
-                          decoration: const InputDecoration(labelText: 'Tarjeta utilizada'),
-                          items: _cards
-                              .map(
-                                (card) => DropdownMenuItem(
-                                  value: card.id,
-                                  child: Text(
-                                    '${card.cardName} · ${card.cardType} · saldo ${card.cardType == 'Crédito' ? (card.creditLimit - card.currentDebt).toStringAsFixed(2) : card.availableBalance.toStringAsFixed(2)}',
-                                  ),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: (value) => setState(() => _selectedCardId = value),
-                        ),
-                      ],
-                      if (_usesAccount) ...[
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<int>(
-                          initialValue: _selectedAccountId,
-                          decoration: const InputDecoration(labelText: 'Cuenta utilizada'),
-                          items: _accounts
-                              .map(
-                                (account) => DropdownMenuItem(
-                                  value: account.id,
-                                  child: Text(
-                                    '${account.bankName} · ${account.accountNumber} · saldo ${account.currentBalance.toStringAsFixed(2)}',
-                                  ),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: (value) => setState(() => _selectedAccountId = value),
-                        ),
-                      ],
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(child: Text('Rubros', style: Theme.of(context).textTheme.titleMedium)),
-                          TextButton.icon(
-                            onPressed: _addItem,
-                            icon: const Icon(Icons.add_circle_outline_rounded),
-                            label: const Text('Agregar rubro'),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      ..._items.asMap().entries.map((entry) {
-                        final index = entry.key;
-                        final item = entry.value;
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                flex: 3,
-                                child: DropdownButtonFormField<int>(
-                                  initialValue: item.categoryId,
-                                  decoration: InputDecoration(labelText: 'Rubro ${index + 1}'),
-                                  items: _categories
-                                      .map((category) => DropdownMenuItem(value: category.id, child: Text(category.name)))
-                                      .toList(),
-                                  onChanged: (value) => setState(() => item.categoryId = value),
-                                ),
+    return RefreshIndicator(
+      onRefresh: () async {
+        await AppServices.syncService.syncPendingOperations();
+        await _loadData();
+      },
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Puedes registrar un gasto con varios rubros y guardarlo en el celular.',
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _descriptionController,
+                    decoration: const InputDecoration(labelText: 'Descripcion'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _dateController,
+                    readOnly: true,
+                    onTap: () => _pickDate(_dateController),
+                    decoration: const InputDecoration(
+                      labelText: 'Fecha',
+                      suffixIcon: Icon(Icons.calendar_month_rounded),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: _paymentMethod,
+                    decoration: const InputDecoration(labelText: 'Metodo de pago'),
+                    items: const [
+                      'Efectivo',
+                      'Tarjeta Crédito',
+                      'Tarjeta Débito',
+                      'Banca Móvil',
+                      'Fiado',
+                    ].map((item) => DropdownMenuItem(value: item, child: Text(item))).toList(),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      _handlePaymentMethodChange(value);
+                    },
+                  ),
+                  if (_usesCard) ...[
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<int>(
+                      initialValue: _selectedCardId,
+                      decoration: const InputDecoration(labelText: 'Tarjeta utilizada'),
+                      items: _cards
+                          .map(
+                            (card) => DropdownMenuItem(
+                              value: card.id,
+                              child: Text(
+                                '${card.cardName} · ${card.cardType} · saldo ${card.cardType == 'Crédito' ? (card.creditLimit - card.currentDebt).toStringAsFixed(2) : card.availableBalance.toStringAsFixed(2)}',
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                flex: 2,
-                                child: TextField(
-                                  controller: item.amountController,
-                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                  decoration: const InputDecoration(labelText: 'Monto'),
-                                  onChanged: (_) => setState(() {}),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              IconButton(
-                                onPressed: _items.length == 1 ? null : () => _removeItem(index),
-                                icon: const Icon(Icons.delete_outline_rounded),
-                              ),
-                            ],
-                          ),
-                        );
-                      }),
-                      const SizedBox(height: 8),
-                      Text('Total: \$${_totalAmount.toStringAsFixed(2)}', style: Theme.of(context).textTheme.titleMedium),
-                      const SizedBox(height: 16),
-                      OutlinedButton.icon(
-                        onPressed: _pickReceipt,
-                        icon: const Icon(Icons.attach_file_rounded),
-                        label: Text(_receiptName ?? 'Adjuntar factura (foto o PDF)'),
-                      ),
-                      if (_receiptName != null) ...[
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(child: Text(_receiptName!)),
-                            TextButton(
-                              onPressed: () => setState(() {
-                                _receiptPath = null;
-                                _receiptName = null;
-                              }),
-                              child: const Text('Quitar'),
                             ),
-                          ],
-                        ),
-                      ],
-                      if (_message != null) ...[
-                        const SizedBox(height: 12),
-                        Text(_message!),
-                      ],
-                      const SizedBox(height: 16),
-                      Row(
+                          )
+                          .toList(),
+                      onChanged: (value) => setState(() => _selectedCardId = value),
+                    ),
+                  ],
+                  if (_usesAccount) ...[
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<int>(
+                      initialValue: _selectedAccountId,
+                      decoration: const InputDecoration(labelText: 'Cuenta utilizada'),
+                      items: _accounts
+                          .map(
+                            (account) => DropdownMenuItem(
+                              value: account.id,
+                              child: Text(
+                                '${account.bankName} · ${account.accountNumber} · saldo ${account.currentBalance.toStringAsFixed(2)}',
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) => setState(() => _selectedAccountId = value),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(child: Text('Rubros', style: Theme.of(context).textTheme.titleMedium)),
+                      TextButton.icon(
+                        onPressed: _addItem,
+                        icon: const Icon(Icons.add_circle_outline_rounded),
+                        label: const Text('Agregar rubro'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ..._items.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final item = entry.value;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
                         children: [
                           Expanded(
-                            child: FilledButton(
-                              onPressed: _saving ? null : _saveExpense,
-                              child: Text(_saving ? 'Guardando...' : 'Guardar gasto'),
+                            flex: 3,
+                            child: DropdownButtonFormField<int>(
+                              initialValue: item.categoryId,
+                              decoration: InputDecoration(labelText: 'Rubro ${index + 1}'),
+                              items: _categories
+                                  .map((category) => DropdownMenuItem(value: category.id, child: Text(category.name)))
+                                  .toList(),
+                              onChanged: (value) => setState(() => item.categoryId = value),
                             ),
                           ),
                           const SizedBox(width: 12),
-                          OutlinedButton(
-                            onPressed: syncStatus.isSyncing ? null : () => AppServices.syncService.syncPendingOperations(),
-                            child: Text(syncStatus.isSyncing ? 'Sincronizando...' : 'Sincronizar'),
+                          Expanded(
+                            flex: 2,
+                            child: TextField(
+                              controller: item.amountController,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              decoration: const InputDecoration(labelText: 'Monto'),
+                              onChanged: (_) => setState(() {}),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            onPressed: _items.length == 1 ? null : () => _removeItem(index),
+                            icon: const Icon(Icons.delete_outline_rounded),
                           ),
                         ],
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 8),
+                  Text('Total: \$${_totalAmount.toStringAsFixed(2)}', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 16),
+                  OutlinedButton.icon(
+                    onPressed: _pickReceipt,
+                    icon: const Icon(Icons.attach_file_rounded),
+                    label: Text(_receiptName ?? 'Adjuntar factura (foto o PDF)'),
+                  ),
+                  if (_receiptName != null) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(child: Text(_receiptName!)),
+                        TextButton(
+                          onPressed: () => setState(() {
+                            _receiptPath = null;
+                            _receiptName = null;
+                          }),
+                          child: const Text('Quitar'),
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (_message != null) ...[
+                    const SizedBox(height: 12),
+                    Text(_message!),
+                  ],
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: _saving ? null : _saveExpense,
+                      child: Text(_saving ? 'Guardando...' : 'Guardar gasto'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (_expenses.isEmpty)
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('Todavia no hay gastos en cache local.'),
+              ),
+            ),
+          ..._expenses.map(
+            (expense) => Card(
+              child: ListTile(
+                title: Text(expense.description),
+                subtitle: Text('${expense.categoryName} · ${expense.paymentMethod} · ${expense.expenseDate}'),
+                trailing: PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'edit') {
+                      _editExpense(expense);
+                    } else if (value == 'delete') {
+                      _deleteExpense(expense);
+                    }
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(value: 'edit', child: Text('Editar')),
+                    PopupMenuItem(value: 'delete', child: Text('Eliminar')),
+                  ],
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text('\$${expense.amount.toStringAsFixed(2)}'),
+                      const SizedBox(height: 4),
+                      Text(
+                        expense.syncStatus == 'synced' ? 'Sincronizado' : 'Pendiente',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: expense.syncStatus == 'synced' ? Colors.green : Colors.orange,
+                        ),
                       ),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
-              Text('Gastos recientes', style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 12),
-              if (_expenses.isEmpty)
-                const Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text('Todavia no hay gastos en cache local.'),
-                  ),
-                ),
-              ..._expenses.map(
-                (expense) => Card(
-                  child: ListTile(
-                    title: Text(expense.description),
-                    subtitle: Text('${expense.categoryName} · ${expense.paymentMethod} · ${expense.expenseDate}'),
-                    trailing: PopupMenuButton<String>(
-                      onSelected: (value) {
-                        if (value == 'edit') {
-                          _editExpense(expense);
-                        } else if (value == 'delete') {
-                          _deleteExpense(expense);
-                        }
-                      },
-                      itemBuilder: (context) => const [
-                        PopupMenuItem(value: 'edit', child: Text('Editar')),
-                        PopupMenuItem(value: 'delete', child: Text('Eliminar')),
-                      ],
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text('\$${expense.amount.toStringAsFixed(2)}'),
-                          const SizedBox(height: 4),
-                          Text(
-                            expense.syncStatus == 'synced' ? 'Sincronizado' : 'Pendiente',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: expense.syncStatus == 'synced' ? Colors.green : Colors.orange,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 }

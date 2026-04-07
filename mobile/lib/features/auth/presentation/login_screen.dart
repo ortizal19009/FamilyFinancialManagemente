@@ -88,7 +88,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          'Accede desde el movil a las mismas opciones del sistema web.',
+                          'Accede desde el movil aun sin servidor. La sincronizacion queda manual desde la app.',
                         ),
                         const SizedBox(height: 24),
                         TextFormField(

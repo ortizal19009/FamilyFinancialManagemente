@@ -14,9 +14,20 @@ CREATE TABLE IF NOT EXISTS users (
 -- 1.1 Tabla de Miembros de la Familia (Para asignar a cuentas/bienes)
 CREATE TABLE IF NOT EXISTS family_members (
     id SERIAL PRIMARY KEY,
+    user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE SET NULL,
     name VARCHAR(100) NOT NULL,
     relationship VARCHAR(50), -- 'Esposa', 'Hijo/a', 'Yo', etc.
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 1.2 Tabla de Relaciones entre Miembros de la Familia
+CREATE TABLE IF NOT EXISTS family_relationships (
+    id SERIAL PRIMARY KEY,
+    source_member_id INTEGER NOT NULL REFERENCES family_members(id) ON DELETE CASCADE,
+    target_member_id INTEGER NOT NULL REFERENCES family_members(id) ON DELETE CASCADE,
+    relationship VARCHAR(50) NOT NULL, -- Relacion desde la perspectiva del source_member
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (source_member_id, target_member_id)
 );
 
 -- 2. Tabla de Bancos / Cooperativas

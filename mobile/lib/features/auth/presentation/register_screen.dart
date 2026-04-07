@@ -36,7 +36,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         password: _passwordController.text,
       );
       setState(() {
-        _message = 'Usuario creado correctamente. Ya puedes iniciar sesion.';
+        _message =
+            'Cuenta creada en este celular. Ya puedes iniciar sesion y sincronizar mas tarde.';
         _loading = false;
       });
     } catch (error) {
@@ -91,7 +92,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: _loading ? null : _submit,
-                  child: Text(_loading ? 'Guardando...' : 'Crear cuenta'),
+                  child: Text(_loading ? 'Guardando...' : 'Crear cuenta local'),
                 ),
               ),
             ],

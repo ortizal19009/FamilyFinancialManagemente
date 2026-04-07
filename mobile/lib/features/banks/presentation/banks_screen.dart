@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/app_services.dart';
 import '../data/mobile_banks_repository.dart';
 import '../domain/bank_models.dart';
 
@@ -327,82 +326,100 @@ class _BanksScreenState extends State<BanksScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return AnimatedBuilder(
-      animation: AppServices.syncService,
-      builder: (context, _) {
-        final syncStatus = AppServices.syncService.status;
-
-        return RefreshIndicator(
-          onRefresh: _loadData,
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(16),
-            children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Bancos y cuentas',
-                              style: Theme.of(context).textTheme.titleLarge,
-                            ),
-                          ),
-                          FilledButton.icon(
-                            onPressed: _saving ? null : () => _openBankDialog(),
-                            icon: const Icon(Icons.add_rounded),
-                            label: const Text('Banco'),
-                          ),
-                          const SizedBox(width: 8),
-                          FilledButton.icon(
-                            onPressed: _saving ? null : () => _openAccountDialog(),
-                            icon: const Icon(Icons.add_card_rounded),
-                            label: const Text('Cuenta'),
-                          ),
-                        ],
+                      const Spacer(),
+                      FilledButton.icon(
+                        onPressed: _saving ? null : () => _openBankDialog(),
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('Banco'),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _loadedFromCache
-                            ? 'Mostrando la ultima informacion guardada localmente.'
-                            : 'Datos cargados desde el backend.',
+                      const SizedBox(width: 8),
+                      FilledButton.icon(
+                        onPressed: _saving ? null : () => _openAccountDialog(),
+                        icon: const Icon(Icons.add_card_rounded),
+                        label: const Text('Cuenta'),
                       ),
-                      const SizedBox(height: 8),
-                      Text(syncStatus.isOnline ? 'Backend disponible.' : 'Sin acceso al backend.'),
-                      if (_message != null) ...[
-                        const SizedBox(height: 12),
-                        Text(_message!),
-                      ],
                     ],
                   ),
+                  if (_message != null) ...[
+                    const SizedBox(height: 12),
+                    Text(_message!),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text('Bancos', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 12),
+          if (_banks.isEmpty)
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('Todavia no hay bancos guardados en el celular.'),
+              ),
+            ),
+          ..._banks.map(
+            (bank) => Card(
+              child: ListTile(
+                leading: const Icon(Icons.account_balance_rounded),
+                title: Text(bank.name),
+                subtitle: Text(bank.description?.isNotEmpty == true ? bank.description! : 'Sin descripcion'),
+                trailing: PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'edit') {
+                      _openBankDialog(bank: bank);
+                    } else if (value == 'delete') {
+                      _deleteBank(bank);
+                    }
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(value: 'edit', child: Text('Editar')),
+                    PopupMenuItem(value: 'delete', child: Text('Eliminar')),
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
-              Text('Bancos', style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 12),
-              if (_banks.isEmpty)
-                const Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text('Todavia no hay bancos sincronizados.'),
-                  ),
-                ),
-              ..._banks.map(
-                (bank) => Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.account_balance_rounded),
-                    title: Text(bank.name),
-                    subtitle: Text(bank.description?.isNotEmpty == true ? bank.description! : 'Sin descripcion'),
-                    trailing: PopupMenuButton<String>(
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text('Cuentas', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 12),
+          if (_accounts.isEmpty)
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('Todavia no hay cuentas guardadas en el celular.'),
+              ),
+            ),
+          ..._accounts.map(
+            (account) => Card(
+              child: ListTile(
+                leading: const Icon(Icons.savings_rounded),
+                title: Text('${account.bankName} · ${account.accountNumber}'),
+                subtitle: Text('${account.accountType ?? 'Cuenta'} · ${account.owner ?? 'Sin propietario'}'),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('\$${account.currentBalance.toStringAsFixed(2)}'),
+                    PopupMenuButton<String>(
                       onSelected: (value) {
                         if (value == 'edit') {
-                          _openBankDialog(bank: bank);
+                          _openAccountDialog(account: account);
                         } else if (value == 'delete') {
-                          _deleteBank(bank);
+                          _deleteAccount(account);
                         }
                       },
                       itemBuilder: (context) => const [
@@ -410,51 +427,13 @@ class _BanksScreenState extends State<BanksScreen> {
                         PopupMenuItem(value: 'delete', child: Text('Eliminar')),
                       ],
                     ),
-                  ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
-              Text('Cuentas', style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 12),
-              if (_accounts.isEmpty)
-                const Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text('Todavia no hay cuentas sincronizadas.'),
-                  ),
-                ),
-              ..._accounts.map(
-                (account) => Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.savings_rounded),
-                    title: Text('${account.bankName} · ${account.accountNumber}'),
-                    subtitle: Text('${account.accountType ?? 'Cuenta'} · ${account.owner ?? 'Sin propietario'}'),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('\$${account.currentBalance.toStringAsFixed(2)}'),
-                        PopupMenuButton<String>(
-                          onSelected: (value) {
-                            if (value == 'edit') {
-                              _openAccountDialog(account: account);
-                            } else if (value == 'delete') {
-                              _deleteAccount(account);
-                            }
-                          },
-                          itemBuilder: (context) => const [
-                            PopupMenuItem(value: 'edit', child: Text('Editar')),
-                            PopupMenuItem(value: 'delete', child: Text('Eliminar')),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 }

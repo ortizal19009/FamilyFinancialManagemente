@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/app_services.dart';
 import '../data/mobile_assets_repository.dart';
 import '../domain/assets_models.dart';
 
@@ -37,6 +36,34 @@ class _AssetsIncomeScreenState extends State<AssetsIncomeScreen> {
     });
   }
 
+  String _formatDate(DateTime date) {
+    return '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _pickDate(
+    BuildContext dialogContext,
+    TextEditingController controller,
+    void Function(void Function())? setDialogState,
+  ) async {
+    final initialDate = DateTime.tryParse(controller.text) ?? DateTime.now();
+    final pickedDate = await showDatePicker(
+      context: dialogContext,
+      initialDate: initialDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (pickedDate == null) {
+      return;
+    }
+
+    final update = () => controller.text = _formatDate(pickedDate);
+    if (setDialogState != null) {
+      setDialogState(update);
+    } else {
+      update();
+    }
+  }
+
   Future<void> _openAssetDialog({AssetSummary? asset}) async {
     final nameController = TextEditingController(text: asset?.name ?? '');
     final ownerController = TextEditingController(text: asset?.owner ?? '');
@@ -48,40 +75,47 @@ class _AssetsIncomeScreenState extends State<AssetsIncomeScreen> {
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(asset == null ? 'Nuevo activo/inversion' : 'Editar activo/inversion'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Nombre')),
-              const SizedBox(height: 12),
-              TextField(controller: ownerController, decoration: const InputDecoration(labelText: 'Propietario')),
-              const SizedBox(height: 12),
-              TextField(
-                controller: valueController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: 'Valor'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: purchaseDateController,
-                decoration: const InputDecoration(labelText: 'Fecha compra (YYYY-MM-DD)'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: descriptionController,
-                decoration: const InputDecoration(labelText: 'Descripcion'),
-                minLines: 2,
-                maxLines: 4,
-              ),
-            ],
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(asset == null ? 'Nuevo activo/inversion' : 'Editar activo/inversion'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Nombre')),
+                const SizedBox(height: 12),
+                TextField(controller: ownerController, decoration: const InputDecoration(labelText: 'Propietario')),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: valueController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(labelText: 'Valor'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: purchaseDateController,
+                  readOnly: true,
+                  onTap: () => _pickDate(context, purchaseDateController, setDialogState),
+                  decoration: const InputDecoration(
+                    labelText: 'Fecha compra',
+                    suffixIcon: Icon(Icons.calendar_month_rounded),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: descriptionController,
+                  decoration: const InputDecoration(labelText: 'Descripcion'),
+                  minLines: 2,
+                  maxLines: 4,
+                ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')),
+            FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Guardar')),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Guardar')),
-        ],
       ),
     );
 
@@ -124,38 +158,45 @@ class _AssetsIncomeScreenState extends State<AssetsIncomeScreen> {
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(income == null ? 'Nuevo ingreso' : 'Editar ingreso'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: sourceController, decoration: const InputDecoration(labelText: 'Fuente')),
-              const SizedBox(height: 12),
-              TextField(
-                controller: amountController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: 'Monto'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: incomeDateController,
-                decoration: const InputDecoration(labelText: 'Fecha (YYYY-MM-DD)'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: descriptionController,
-                decoration: const InputDecoration(labelText: 'Descripcion'),
-                minLines: 2,
-                maxLines: 4,
-              ),
-            ],
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(income == null ? 'Nuevo ingreso' : 'Editar ingreso'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(controller: sourceController, decoration: const InputDecoration(labelText: 'Fuente')),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: amountController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(labelText: 'Monto'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: incomeDateController,
+                  readOnly: true,
+                  onTap: () => _pickDate(context, incomeDateController, setDialogState),
+                  decoration: const InputDecoration(
+                    labelText: 'Fecha',
+                    suffixIcon: Icon(Icons.calendar_month_rounded),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: descriptionController,
+                  decoration: const InputDecoration(labelText: 'Descripcion'),
+                  minLines: 2,
+                  maxLines: 4,
+                ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')),
+            FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Guardar')),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Guardar')),
-        ],
       ),
     );
 
@@ -218,46 +259,34 @@ class _AssetsIncomeScreenState extends State<AssetsIncomeScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
-          AnimatedBuilder(
-            animation: AppServices.syncService,
-            builder: (context, _) {
-              final syncStatus = AppServices.syncService.status;
-              return Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Text('Activos, ingresos e inversiones', style: Theme.of(context).textTheme.titleLarge),
-                      const SizedBox(height: 8),
-                      Text(_loadedFromCache ? 'Mostrando la ultima informacion guardada localmente.' : 'Datos cargados desde el backend.'),
-                      const SizedBox(height: 8),
-                      Text(syncStatus.isOnline ? 'Backend disponible.' : 'Sin acceso al backend.'),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          FilledButton.icon(
-                            onPressed: () => _openAssetDialog(),
-                            icon: const Icon(Icons.add_rounded),
-                            label: const Text('Activo'),
-                          ),
-                          const SizedBox(width: 8),
-                          FilledButton.icon(
-                            onPressed: () => _openIncomeDialog(),
-                            icon: const Icon(Icons.trending_up_rounded),
-                            label: const Text('Ingreso'),
-                          ),
-                        ],
+                      FilledButton.icon(
+                        onPressed: () => _openAssetDialog(),
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('Activo'),
                       ),
-                      if (_message != null) ...[
-                        const SizedBox(height: 12),
-                        Text(_message!),
-                      ],
+                      const SizedBox(width: 8),
+                      FilledButton.icon(
+                        onPressed: () => _openIncomeDialog(),
+                        icon: const Icon(Icons.trending_up_rounded),
+                        label: const Text('Ingreso'),
+                      ),
                     ],
                   ),
-                ),
-              );
-            },
+                  if (_message != null) ...[
+                    const SizedBox(height: 12),
+                    Text(_message!),
+                  ],
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 16),
           Text('Activos / Inversiones', style: Theme.of(context).textTheme.titleLarge),
@@ -266,7 +295,7 @@ class _AssetsIncomeScreenState extends State<AssetsIncomeScreen> {
             const Card(
               child: Padding(
                 padding: EdgeInsets.all(16),
-                child: Text('Todavia no hay activos sincronizados.'),
+                child: Text('Todavia no hay activos guardados en el celular.'),
               ),
             ),
           ..._assets.map(
@@ -309,7 +338,7 @@ class _AssetsIncomeScreenState extends State<AssetsIncomeScreen> {
             const Card(
               child: Padding(
                 padding: EdgeInsets.all(16),
-                child: Text('Todavia no hay ingresos sincronizados.'),
+                child: Text('Todavia no hay ingresos guardados en el celular.'),
               ),
             ),
           ..._income.map(

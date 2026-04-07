@@ -65,21 +65,7 @@ class _HomeShellState extends State<HomeShell> {
         title: AnimatedBuilder(
           animation: AppServices.syncService,
           builder: (context, _) {
-            final status = AppServices.syncService.status;
-            final subtitle = status.pendingCount > 0
-                ? 'Pendientes: ${status.pendingCount}'
-                : (status.isOnline ? 'En linea' : 'Sin acceso al backend');
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(item.label),
-                Text(
-                  subtitle,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            );
+            return Text(item.label);
           },
         ),
         actions: [
@@ -87,18 +73,39 @@ class _HomeShellState extends State<HomeShell> {
             animation: AppServices.syncService,
             builder: (context, _) {
               final status = AppServices.syncService.status;
-              return IconButton(
-                tooltip: 'Sincronizar',
-                onPressed: status.isSyncing
-                    ? null
-                    : () => AppServices.syncService.syncPendingOperations(),
-                icon: status.isSyncing
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.sync_rounded),
+              final isEnabled = status.isOnline && !status.isSyncing;
+
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: status.isOnline ? Colors.green.shade100 : Colors.red.shade100,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      status.isOnline ? 'ON' : 'OFF',
+                      style: TextStyle(
+                        color: status.isOnline ? Colors.green.shade800 : Colors.red.shade800,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Sincronizar',
+                    onPressed: isEnabled
+                        ? () => AppServices.syncService.syncPendingOperations()
+                        : null,
+                    icon: status.isSyncing
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.sync_rounded),
+                  ),
+                ],
               );
             },
           ),

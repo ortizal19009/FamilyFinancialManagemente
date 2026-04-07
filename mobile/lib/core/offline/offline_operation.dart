@@ -51,12 +51,17 @@ class OfflineOperation {
   }
 
   factory OfflineOperation.fromMap(Map<String, dynamic> map) {
+    final rawPayload = map['payload'];
+    final payload = rawPayload is String
+        ? Map<String, dynamic>.from(jsonDecode(rawPayload) as Map)
+        : Map<String, dynamic>.from(rawPayload as Map);
+
     return OfflineOperation(
       id: map['id'] as String,
       module: map['module'] as String,
       method: map['method'] as String,
       path: map['path'] as String,
-      payload: Map<String, dynamic>.from(map['payload'] as Map),
+      payload: payload,
       createdAt: DateTime.parse(map['created_at'] as String),
       status: map['status'] as String? ?? 'pending',
       errorMessage: map['error_message'] as String?,

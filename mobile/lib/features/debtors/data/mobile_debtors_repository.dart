@@ -1,5 +1,7 @@
+import '../../../core/app_services.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/offline/local_cache_storage.dart';
+import '../../../core/offline/offline_operation.dart';
 import '../domain/debtor_models.dart';
 
 class MobileDebtorsRepository {
@@ -25,16 +27,20 @@ class MobileDebtorsRepository {
       final smallDebts = (smallDebtsResponse as List<dynamic>)
           .map((item) => SmallDebtSummary.fromMap(Map<String, dynamic>.from(item as Map)))
           .toList();
+      final pendingDebtors = await _loadPendingLocalDebtors();
+      final pendingSmallDebts = await _loadPendingLocalSmallDebts();
+      final mergedDebtors = [...pendingDebtors, ...debtors];
+      final mergedSmallDebts = [...pendingSmallDebts, ...smallDebts];
 
       await _cacheStorage.saveCollection(
         _debtorsCacheKey,
-        debtors.map((item) => item.toMap()).toList(),
+        mergedDebtors.map((item) => item.toMap()).toList(),
       );
       await _cacheStorage.saveCollection(
         _smallDebtsCacheKey,
-        smallDebts.map((item) => item.toMap()).toList(),
+        mergedSmallDebts.map((item) => item.toMap()).toList(),
       );
-      return (debtors, smallDebts, false);
+      return (mergedDebtors, mergedSmallDebts, false);
     } catch (_) {
       final cached = await _cacheStorage.getCollection(_debtorsCacheKey);
       final cachedSmallDebts = await _cacheStorage.getCollection(_smallDebtsCacheKey);
@@ -53,14 +59,43 @@ class MobileDebtorsRepository {
     String? dueDate,
     String status = 'pendiente',
   }) async {
-    await _apiClient.post('/debtors/', {
-      'name': name,
-      'amount_owed': amountOwed,
-      'description': description,
-      'due_date': dueDate,
-      'status': status,
-    });
+    final localDebtor = DebtorSummary(
+      id: _nextLocalId(),
+      name: name,
+      amountOwed: amountOwed,
+      description: description,
+      dueDate: dueDate,
+      status: status,
+    );
+    final cached = await _cacheStorage.getCollection(_debtorsCacheKey);
+    await _cacheStorage.saveCollection(_debtorsCacheKey, [localDebtor.toMap(), ...cached]);
+    await AppServices.syncService.enqueue(OfflineOperation(
+      id: 'debtor-${localDebtor.id}',
+      module: 'debtors',
+      method: 'POST',
+      path: '/debtors/',
+      payload: {
+        'name': name,
+        'amount_owed': amountOwed,
+        'description': description,
+        'due_date': dueDate,
+        'status': status,
+      },
+      createdAt: DateTime.now(),
+    ));
   }
+
+  Future<List<DebtorSummary>> _loadPendingLocalDebtors() async {
+    final cached = await _cacheStorage.getCollection(_debtorsCacheKey);
+    return cached.map(DebtorSummary.fromMap).where((item) => item.id < 0).toList();
+  }
+
+  Future<List<SmallDebtSummary>> _loadPendingLocalSmallDebts() async {
+    final cached = await _cacheStorage.getCollection(_smallDebtsCacheKey);
+    return cached.map(SmallDebtSummary.fromMap).where((item) => item.id < 0).toList();
+  }
+
+  int _nextLocalId() => -DateTime.now().microsecondsSinceEpoch;
 
   Future<void> updateDebtor({
     required int id,
@@ -70,6 +105,23 @@ class MobileDebtorsRepository {
     String? dueDate,
     required String status,
   }) async {
+    if (id < 0) {
+      final cached = await _cacheStorage.getCollection(_debtorsCacheKey);
+      final updated = cached
+          .map((item) => item['id'] == id
+              ? {
+                  ...item,
+                  'name': name,
+                  'amount_owed': amountOwed,
+                  'description': description,
+                  'due_date': dueDate,
+                  'status': status,
+                }
+              : item)
+          .toList();
+      await _cacheStorage.saveCollection(_debtorsCacheKey, updated);
+      return;
+    }
     await _apiClient.put('/debtors/$id', {
       'name': name,
       'amount_owed': amountOwed,
@@ -80,6 +132,14 @@ class MobileDebtorsRepository {
   }
 
   Future<void> deleteDebtor(int id) async {
+    if (id < 0) {
+      final cached = await _cacheStorage.getCollection(_debtorsCacheKey);
+      await _cacheStorage.saveCollection(
+        _debtorsCacheKey,
+        cached.where((item) => item['id'] != id).toList(),
+      );
+      return;
+    }
     await _apiClient.delete('/debtors/$id');
   }
 
@@ -91,14 +151,32 @@ class MobileDebtorsRepository {
     String? dueDate,
     String status = 'pendiente',
   }) async {
-    await _apiClient.post('/debtors/small-debts', {
-      'lender_name': lenderName,
-      'amount': amount,
-      'description': description,
-      'borrowed_date': borrowedDate,
-      'due_date': dueDate,
-      'status': status,
-    });
+    final localDebt = SmallDebtSummary(
+      id: _nextLocalId(),
+      lenderName: lenderName,
+      amount: amount,
+      description: description,
+      borrowedDate: borrowedDate,
+      dueDate: dueDate,
+      status: status,
+    );
+    final cached = await _cacheStorage.getCollection(_smallDebtsCacheKey);
+    await _cacheStorage.saveCollection(_smallDebtsCacheKey, [localDebt.toMap(), ...cached]);
+    await AppServices.syncService.enqueue(OfflineOperation(
+      id: 'small-debt-${localDebt.id}',
+      module: 'debtors',
+      method: 'POST',
+      path: '/debtors/small-debts',
+      payload: {
+        'lender_name': lenderName,
+        'amount': amount,
+        'description': description,
+        'borrowed_date': borrowedDate,
+        'due_date': dueDate,
+        'status': status,
+      },
+      createdAt: DateTime.now(),
+    ));
   }
 
   Future<void> updateSmallDebt({
@@ -110,6 +188,24 @@ class MobileDebtorsRepository {
     String? dueDate,
     required String status,
   }) async {
+    if (id < 0) {
+      final cached = await _cacheStorage.getCollection(_smallDebtsCacheKey);
+      final updated = cached
+          .map((item) => item['id'] == id
+              ? {
+                  ...item,
+                  'lender_name': lenderName,
+                  'amount': amount,
+                  'description': description,
+                  'borrowed_date': borrowedDate,
+                  'due_date': dueDate,
+                  'status': status,
+                }
+              : item)
+          .toList();
+      await _cacheStorage.saveCollection(_smallDebtsCacheKey, updated);
+      return;
+    }
     await _apiClient.put('/debtors/small-debts/$id', {
       'lender_name': lenderName,
       'amount': amount,
@@ -121,6 +217,14 @@ class MobileDebtorsRepository {
   }
 
   Future<void> deleteSmallDebt(int id) async {
+    if (id < 0) {
+      final cached = await _cacheStorage.getCollection(_smallDebtsCacheKey);
+      await _cacheStorage.saveCollection(
+        _smallDebtsCacheKey,
+        cached.where((item) => item['id'] != id).toList(),
+      );
+      return;
+    }
     await _apiClient.delete('/debtors/small-debts/$id');
   }
 }

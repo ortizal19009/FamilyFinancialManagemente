@@ -2,11 +2,28 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 
 try:
-    from backend.models import db, User
+    from backend.models import db, FamilyMember, User
 except ModuleNotFoundError:
-    from models import db, User
+    from models import db, FamilyMember, User
 
 auth_bp = Blueprint('auth', __name__)
+
+def ensure_user_family_member(user):
+    member = FamilyMember.query.filter_by(user_id=user.id).first()
+    if member:
+        if member.name != user.full_name:
+            member.name = user.full_name
+            db.session.commit()
+        return member
+
+    member = FamilyMember(
+        user_id=user.id,
+        name=user.full_name,
+        relationship='Yo',
+    )
+    db.session.add(member)
+    db.session.commit()
+    return member
 
 @auth_bp.route('/register', methods=['POST'])
 def register():
@@ -27,6 +44,7 @@ def register():
     
     db.session.add(new_user)
     db.session.commit()
+    ensure_user_family_member(new_user)
     
     return jsonify({"msg": "User created successfully"}), 201
 
@@ -40,6 +58,7 @@ def login():
     user = User.query.filter_by(email=data['email']).first()
     
     if user and user.check_password(data['password']):
+        ensure_user_family_member(user)
         # Asegurar que la identidad sea una cadena para evitar problemas de serialización
         access_token = create_access_token(identity=str(user.id))
         return jsonify({
@@ -95,6 +114,7 @@ def admin_create_user():
     
     db.session.add(new_user)
     db.session.commit()
+    ensure_user_family_member(new_user)
     return jsonify({"msg": "User created successfully", "id": new_user.id}), 201
 
 @auth_bp.route('/me', methods=['GET'])
@@ -104,9 +124,30 @@ def get_me():
     user = db.session.get(User, int(user_id))
     if not user:
         return jsonify({"msg": "User not found"}), 404
+    member = ensure_user_family_member(user)
     return jsonify({
         "id": user.id,
         "full_name": user.full_name,
         "email": user.email,
-        "role": user.role
+        "role": user.role,
+        "family_member_id": member.id,
     }), 200
+
+@auth_bp.route('/family-link-options', methods=['GET'])
+@jwt_required()
+def get_family_link_options():
+    user_id = get_jwt_identity()
+    current_user = db.session.get(User, int(user_id))
+    if not current_user:
+        return jsonify({"msg": "User not found"}), 404
+
+    users = User.query.order_by(User.full_name.asc()).all()
+    return jsonify([
+        {
+            "id": user.id,
+            "full_name": user.full_name,
+            "email": user.email,
+            "is_current_user": user.id == current_user.id,
+        }
+        for user in users
+    ]), 200

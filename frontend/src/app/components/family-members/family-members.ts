@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { ApiService } from '../../services/api.service';
+import { AuthService, User } from '../../services/auth.service';
 
 @Component({
   selector: 'app-family-members',
@@ -13,8 +14,10 @@ import { ApiService } from '../../services/api.service';
 })
 export class FamilyMembersComponent implements OnInit {
   private apiService = inject(ApiService);
+  private authService = inject(AuthService);
 
   members: any[] = [];
+  linkableUsers: User[] = [];
   formMember = this.createEmptyMember();
 
   editingMember: any = null;
@@ -23,11 +26,20 @@ export class FamilyMembersComponent implements OnInit {
   errorMsg = '';
 
   ngOnInit() {
+    this.loadLinkableUsers();
     this.loadMembers();
   }
 
   loadMembers() {
     this.apiService.getFamilyMembers().subscribe(data => this.members = data);
+  }
+
+  loadLinkableUsers() {
+    this.authService.getFamilyLinkOptions().subscribe({
+      next: (users) => {
+        this.linkableUsers = users;
+      },
+    });
   }
 
   onCreateMember() {
@@ -52,8 +64,20 @@ export class FamilyMembersComponent implements OnInit {
     this.editingMember = { ...member };
     this.formMember = {
       name: member.name,
-      relationship: member.relationship
+      relationship: member.relationship,
+      linked_user_email: member.linked_user_email ?? ''
     };
+  }
+
+  onLinkedUserChange() {
+    const selectedUser = this.linkableUsers.find(
+      (user) => user.email === this.formMember.linked_user_email,
+    );
+    if (!selectedUser) {
+      return;
+    }
+
+    this.formMember.name = selectedUser.full_name;
   }
 
   onUpdateMember() {
@@ -92,7 +116,8 @@ export class FamilyMembersComponent implements OnInit {
   private createEmptyMember() {
     return {
       name: '',
-      relationship: 'Yo'
+      relationship: 'Esposa',
+      linked_user_email: ''
     };
   }
 }

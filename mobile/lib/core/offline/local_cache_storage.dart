@@ -1,16 +1,37 @@
 import 'dart:convert';
 
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite/sqflite.dart';
+
+import 'local_database.dart';
 
 class LocalCacheStorage {
   Future<void> saveCollection(String key, List<Map<String, dynamic>> items) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(key, jsonEncode(items));
+    final db = await LocalDatabase.instance.database;
+    await db.insert(
+      'app_cache',
+      {
+        'cache_key': key,
+        'cache_value': jsonEncode(items),
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<List<Map<String, dynamic>>> getCollection(String key) async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(key);
+    final db = await LocalDatabase.instance.database;
+    final rows = await db.query(
+      'app_cache',
+      columns: ['cache_value'],
+      where: 'cache_key = ?',
+      whereArgs: [key],
+      limit: 1,
+    );
+    if (rows.isEmpty) {
+      return <Map<String, dynamic>>[];
+    }
+
+    final raw = rows.first['cache_value'] as String?;
     if (raw == null || raw.isEmpty) {
       return <Map<String, dynamic>>[];
     }

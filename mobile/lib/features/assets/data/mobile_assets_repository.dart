@@ -1,5 +1,7 @@
+import '../../../core/app_services.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/offline/local_cache_storage.dart';
+import '../../../core/offline/offline_operation.dart';
 import '../domain/assets_models.dart';
 
 class MobileAssetsRepository {
@@ -26,19 +28,23 @@ class MobileAssetsRepository {
       final income = (incomeResponse as List<dynamic>)
           .map((item) => IncomeSummary.fromMap(Map<String, dynamic>.from(item as Map)))
           .toList();
+      final pendingAssets = await _loadPendingLocalAssets();
+      final pendingIncome = await _loadPendingLocalIncome();
+      final mergedAssets = [...pendingAssets, ...assets];
+      final mergedIncome = [...pendingIncome, ...income];
 
       await _cacheStorage.saveCollection(
         _assetsCacheKey,
-        assets.map((item) => item.toMap()).toList(),
+        mergedAssets.map((item) => item.toMap()).toList(),
       );
       await _cacheStorage.saveCollection(
         _incomeCacheKey,
-        income.map((item) => item.toMap()).toList(),
+        mergedIncome.map((item) => item.toMap()).toList(),
       );
 
       return AssetsSnapshot(
-        assets: assets,
-        income: income,
+        assets: mergedAssets,
+        income: mergedIncome,
         loadedFromCache: false,
       );
     } catch (_) {
@@ -59,14 +65,43 @@ class MobileAssetsRepository {
     String? description,
     String? purchaseDate,
   }) async {
-    await _apiClient.post('/assets_income/assets', {
-      'name': name,
-      'value': value,
-      'owner': owner,
-      'description': description,
-      'purchase_date': purchaseDate,
-    });
+    final localAsset = AssetSummary(
+      id: _nextLocalId(),
+      name: name,
+      value: value,
+      owner: owner,
+      description: description,
+      purchaseDate: purchaseDate,
+    );
+    final cached = await _cacheStorage.getCollection(_assetsCacheKey);
+    await _cacheStorage.saveCollection(_assetsCacheKey, [localAsset.toMap(), ...cached]);
+    await AppServices.syncService.enqueue(OfflineOperation(
+      id: 'asset-${localAsset.id}',
+      module: 'assets',
+      method: 'POST',
+      path: '/assets_income/assets',
+      payload: {
+        'name': name,
+        'value': value,
+        'owner': owner,
+        'description': description,
+        'purchase_date': purchaseDate,
+      },
+      createdAt: DateTime.now(),
+    ));
   }
+
+  Future<List<AssetSummary>> _loadPendingLocalAssets() async {
+    final cached = await _cacheStorage.getCollection(_assetsCacheKey);
+    return cached.map(AssetSummary.fromMap).where((item) => item.id < 0).toList();
+  }
+
+  Future<List<IncomeSummary>> _loadPendingLocalIncome() async {
+    final cached = await _cacheStorage.getCollection(_incomeCacheKey);
+    return cached.map(IncomeSummary.fromMap).where((item) => item.id < 0).toList();
+  }
+
+  int _nextLocalId() => -DateTime.now().microsecondsSinceEpoch;
 
   Future<void> updateAsset({
     required int id,
@@ -76,6 +111,23 @@ class MobileAssetsRepository {
     String? description,
     String? purchaseDate,
   }) async {
+    if (id < 0) {
+      final cached = await _cacheStorage.getCollection(_assetsCacheKey);
+      final updated = cached
+          .map((item) => item['id'] == id
+              ? {
+                  ...item,
+                  'name': name,
+                  'value': value,
+                  'owner': owner,
+                  'description': description,
+                  'purchase_date': purchaseDate,
+                }
+              : item)
+          .toList();
+      await _cacheStorage.saveCollection(_assetsCacheKey, updated);
+      return;
+    }
     await _apiClient.put('/assets_income/assets/$id', {
       'name': name,
       'value': value,
@@ -86,6 +138,14 @@ class MobileAssetsRepository {
   }
 
   Future<void> deleteAsset(int id) async {
+    if (id < 0) {
+      final cached = await _cacheStorage.getCollection(_assetsCacheKey);
+      await _cacheStorage.saveCollection(
+        _assetsCacheKey,
+        cached.where((item) => item['id'] != id).toList(),
+      );
+      return;
+    }
     await _apiClient.delete('/assets_income/assets/$id');
   }
 
@@ -95,12 +155,29 @@ class MobileAssetsRepository {
     required String incomeDate,
     String? description,
   }) async {
-    await _apiClient.post('/assets_income/income', {
-      'amount': amount,
-      'source': source,
-      'income_date': incomeDate,
-      'description': description,
-    });
+    final localIncome = IncomeSummary(
+      id: _nextLocalId(),
+      userName: null,
+      amount: amount,
+      source: source,
+      incomeDate: incomeDate,
+      description: description,
+    );
+    final cached = await _cacheStorage.getCollection(_incomeCacheKey);
+    await _cacheStorage.saveCollection(_incomeCacheKey, [localIncome.toMap(), ...cached]);
+    await AppServices.syncService.enqueue(OfflineOperation(
+      id: 'income-${localIncome.id}',
+      module: 'assets',
+      method: 'POST',
+      path: '/assets_income/income',
+      payload: {
+        'amount': amount,
+        'source': source,
+        'income_date': incomeDate,
+        'description': description,
+      },
+      createdAt: DateTime.now(),
+    ));
   }
 
   Future<void> updateIncome({
@@ -110,6 +187,22 @@ class MobileAssetsRepository {
     required String incomeDate,
     String? description,
   }) async {
+    if (id < 0) {
+      final cached = await _cacheStorage.getCollection(_incomeCacheKey);
+      final updated = cached
+          .map((item) => item['id'] == id
+              ? {
+                  ...item,
+                  'amount': amount,
+                  'source': source,
+                  'income_date': incomeDate,
+                  'description': description,
+                }
+              : item)
+          .toList();
+      await _cacheStorage.saveCollection(_incomeCacheKey, updated);
+      return;
+    }
     await _apiClient.put('/assets_income/income/$id', {
       'amount': amount,
       'source': source,
@@ -119,6 +212,14 @@ class MobileAssetsRepository {
   }
 
   Future<void> deleteIncome(int id) async {
+    if (id < 0) {
+      final cached = await _cacheStorage.getCollection(_incomeCacheKey);
+      await _cacheStorage.saveCollection(
+        _incomeCacheKey,
+        cached.where((item) => item['id'] != id).toList(),
+      );
+      return;
+    }
     await _apiClient.delete('/assets_income/income/$id');
   }
 }
