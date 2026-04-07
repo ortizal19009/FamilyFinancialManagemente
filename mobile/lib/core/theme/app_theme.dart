@@ -10,6 +10,64 @@ class AppTheme {
   static const Color mist = Color(0xFFF4EFE8);
 
   static ThemeData light() {
+    return byId('heritage');
+  }
+
+  static ThemeData byId(String themeId) {
+    switch (themeId) {
+      case 'ocean':
+        return _buildTheme(
+          primary: const Color(0xFF0F4C81),
+          primaryDeep: const Color(0xFF0A3559),
+          secondary: const Color(0xFF2A9D8F),
+          ink: const Color(0xFF17324D),
+          cream: const Color(0xFFEAF4F4),
+          sand: const Color(0xFFCAE7E2),
+          mist: const Color(0xFFF5FAFA),
+        );
+      case 'sunset':
+        return _buildTheme(
+          primary: const Color(0xFFA33B20),
+          primaryDeep: const Color(0xFF6C2412),
+          secondary: const Color(0xFFF4A261),
+          ink: const Color(0xFF4C251B),
+          cream: const Color(0xFFFEF3E7),
+          sand: const Color(0xFFF7D7B8),
+          mist: const Color(0xFFFFF8F1),
+        );
+      case 'forest':
+        return _buildTheme(
+          primary: const Color(0xFF2F5D50),
+          primaryDeep: const Color(0xFF1E3E35),
+          secondary: const Color(0xFF7A9E7E),
+          ink: const Color(0xFF22342E),
+          cream: const Color(0xFFF1F5EC),
+          sand: const Color(0xFFD9E4D3),
+          mist: const Color(0xFFF8FBF5),
+        );
+      case 'heritage':
+      default:
+        return _buildTheme(
+          primary: pine,
+          primaryDeep: pineDeep,
+          secondary: clay,
+          ink: ink,
+          cream: cream,
+          sand: sand,
+          mist: mist,
+        );
+    }
+  }
+
+  static ThemeData _buildTheme({
+    required Color primary,
+    required Color primaryDeep,
+    required Color secondary,
+    required Color ink,
+    required Color cream,
+    required Color sand,
+    required Color mist,
+  }) {
     const colorScheme = ColorScheme(
       brightness: Brightness.light,
       primary: pine,
@@ -19,14 +77,20 @@ class AppTheme {
       error: Color(0xFFB94A48),
       onError: Colors.white,
       surface: Colors.white,
+      onSurface: AppTheme.ink,
+    );
+
+    final resolvedColorScheme = colorScheme.copyWith(
+      primary: primary,
+      secondary: secondary,
       onSurface: ink,
     );
 
     return ThemeData(
       useMaterial3: true,
-      colorScheme: colorScheme,
+      colorScheme: resolvedColorScheme,
       scaffoldBackgroundColor: mist,
-      textTheme: const TextTheme(
+      textTheme: TextTheme(
         headlineLarge: TextStyle(
           fontSize: 34,
           fontWeight: FontWeight.w800,
@@ -60,7 +124,7 @@ class AppTheme {
           color: ink,
         ),
       ),
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         centerTitle: false,
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
@@ -71,11 +135,11 @@ class AppTheme {
         color: Colors.white.withValues(alpha: 0.88),
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        shadowColor: pineDeep.withValues(alpha: 0.10),
+        shadowColor: primaryDeep.withValues(alpha: 0.10),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(28),
           side: BorderSide(
-            color: pine.withValues(alpha: 0.08),
+            color: primary.withValues(alpha: 0.08),
           ),
         ),
       ),
@@ -97,20 +161,20 @@ class AppTheme {
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
           borderSide: BorderSide(
-            color: pine.withValues(alpha: 0.08),
+            color: primary.withValues(alpha: 0.08),
           ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(
-            color: clay,
+          borderSide: BorderSide(
+            color: secondary,
             width: 1.4,
           ),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: pine,
+          backgroundColor: primary,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
           textStyle: const TextStyle(
@@ -124,8 +188,8 @@ class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: pine,
-          side: BorderSide(color: pine.withValues(alpha: 0.28)),
+          foregroundColor: primary,
+          side: BorderSide(color: primary.withValues(alpha: 0.28)),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
@@ -134,7 +198,7 @@ class AppTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: pine,
+          foregroundColor: primary,
           textStyle: const TextStyle(
             fontWeight: FontWeight.w700,
           ),
@@ -155,7 +219,7 @@ class AppTheme {
         ),
       ),
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: pineDeep,
+        backgroundColor: primaryDeep,
         contentTextStyle: const TextStyle(color: Colors.white),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),

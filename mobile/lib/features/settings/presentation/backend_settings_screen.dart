@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../../../app.dart';
 import '../../../core/config/api_config.dart';
 import '../../../core/app_services.dart';
 import '../../../core/offline/backup_service.dart';
 import '../../../core/offline/backend_reachability_service.dart';
+import '../../../core/theme/theme_controller.dart';
 
 class BackendSettingsScreen extends StatefulWidget {
   const BackendSettingsScreen({super.key});
@@ -22,6 +24,8 @@ class _BackendSettingsScreenState extends State<BackendSettingsScreen> {
   bool _importing = false;
   String? _message;
 
+  ThemeOption? _selectedThemeOption;
+
   @override
   void initState() {
     super.initState();
@@ -31,8 +35,15 @@ class _BackendSettingsScreenState extends State<BackendSettingsScreen> {
   Future<void> _loadCurrentValue() async {
     final value = await ApiConfig.getBaseUrl();
     if (!mounted) return;
+    final themeController = FamilyFinanceApp.of(context)?.themeController;
     setState(() {
       _controller.text = value;
+      _selectedThemeOption = themeController == null
+          ? null
+          : ThemeController.options.firstWhere(
+              (option) => option.id == themeController.selectedThemeId,
+              orElse: () => ThemeController.options.first,
+            );
       _loading = false;
     });
   }
@@ -148,6 +159,9 @@ class _BackendSettingsScreenState extends State<BackendSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final appState = FamilyFinanceApp.of(context);
+    final themeController = appState?.themeController;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Configuracion'),
@@ -158,6 +172,71 @@ class _BackendSettingsScreenState extends State<BackendSettingsScreen> {
               padding: const EdgeInsets.all(16),
               child: ListView(
                 children: [
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Temas',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Selecciona una paleta predefinida para personalizar la apariencia de la app movil.',
+                          ),
+                          const SizedBox(height: 16),
+                          if (themeController != null)
+                            DropdownButtonFormField<String>(
+                              initialValue: (_selectedThemeOption ?? ThemeController.options.first).id,
+                              decoration: const InputDecoration(
+                                labelText: 'Tema predefinido',
+                              ),
+                              items: ThemeController.options
+                                  .map(
+                                    (option) => DropdownMenuItem<String>(
+                                      value: option.id,
+                                      child: Text(option.label),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (value) async {
+                                if (value == null) return;
+                                final selected = ThemeController.options.firstWhere(
+                                  (option) => option.id == value,
+                                );
+                                await themeController.selectTheme(value);
+                                if (!mounted) return;
+                                setState(() {
+                                  _selectedThemeOption = selected;
+                                  _message = 'Tema aplicado: ${selected.label}';
+                                });
+                              },
+                            ),
+                          if (_selectedThemeOption != null) ...[
+                            const SizedBox(height: 12),
+                            Row(
+                              children: _selectedThemeOption!.previewColors
+                                  .map(
+                                    (color) => Container(
+                                      width: 22,
+                                      height: 22,
+                                      margin: const EdgeInsets.only(right: 8),
+                                      decoration: BoxDecoration(
+                                        color: color,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   Card(
                     child: Padding(
                       padding: const EdgeInsets.all(16),

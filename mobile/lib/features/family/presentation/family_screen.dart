@@ -124,73 +124,69 @@ class _FamilyScreenState extends State<FamilyScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return RefreshIndicator(
-      onRefresh: _loadData,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Spacer(),
-                      FilledButton.icon(
-                        onPressed: () => _openMemberDialog(),
-                        icon: const Icon(Icons.add_rounded),
-                        label: const Text('Agregar'),
-                      ),
-                    ],
+    return Stack(
+      children: [
+        RefreshIndicator(
+          onRefresh: _loadData,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+            children: [
+              if (_message != null) ...[
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(_message!),
                   ),
-                  if (_message != null) ...[
-                    const SizedBox(height: 12),
-                    Text(_message!),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (_members.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('No hay integrantes guardados en el celular.'),
-              ),
-            ),
-          ..._members.map(
-            (member) => Card(
-              child: ListTile(
-                leading: const Icon(Icons.family_restroom_rounded),
-                title: Text(member['name']?.toString() ?? ''),
-                subtitle: Text(
-                  [
-                    member['relationship']?.toString() ?? '',
-                    if ((member['linked_user_email']?.toString() ?? '').isNotEmpty)
-                      member['linked_user_email']!.toString(),
-                  ].where((item) => item.isNotEmpty).join(' · '),
                 ),
-                trailing: PopupMenuButton<String>(
-                  onSelected: (value) {
-                    if (value == 'edit') {
-                      _openMemberDialog(member: member);
-                    } else if (value == 'delete') {
-                      _deleteMember(member);
-                    }
-                  },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(value: 'edit', child: Text('Editar')),
-                    PopupMenuItem(value: 'delete', child: Text('Eliminar')),
-                  ],
+                const SizedBox(height: 16),
+              ],
+              if (_members.isEmpty)
+                const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text('No hay integrantes guardados en el celular.'),
+                  ),
+                ),
+              ..._members.map(
+                (member) => Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.family_restroom_rounded),
+                    title: Text(member['name']?.toString() ?? ''),
+                    subtitle: Text(
+                      [
+                        member['relationship']?.toString() ?? '',
+                        if ((member['linked_user_email']?.toString() ?? '').isNotEmpty)
+                          member['linked_user_email']!.toString(),
+                      ].where((item) => item.isNotEmpty).join(' · '),
+                    ),
+                    trailing: PopupMenuButton<String>(
+                      onSelected: (value) {
+                        if (value == 'edit') {
+                          _openMemberDialog(member: member);
+                        } else if (value == 'delete') {
+                          _deleteMember(member);
+                        }
+                      },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(value: 'edit', child: Text('Editar')),
+                        PopupMenuItem(value: 'delete', child: Text('Eliminar')),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        ),
+        Positioned(
+          right: 20,
+          bottom: 20,
+          child: FloatingActionButton(
+            onPressed: _openMemberDialog,
+            child: const Icon(Icons.add_rounded),
+          ),
+        ),
+      ],
     );
   }
 }

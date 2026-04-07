@@ -12,6 +12,7 @@ class AssetsIncomeScreen extends StatefulWidget {
 
 class _AssetsIncomeScreenState extends State<AssetsIncomeScreen> {
   final _repository = MobileAssetsRepository();
+  final _tabController = ValueNotifier<int>(0);
 
   List<AssetSummary> _assets = [];
   List<IncomeSummary> _income = [];
@@ -23,6 +24,12 @@ class _AssetsIncomeScreenState extends State<AssetsIncomeScreen> {
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -253,125 +260,154 @@ class _AssetsIncomeScreenState extends State<AssetsIncomeScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return RefreshIndicator(
-      onRefresh: _loadData,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
+    return DefaultTabController(
+      length: 2,
+      child: Stack(
         children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      FilledButton.icon(
-                        onPressed: () => _openAssetDialog(),
-                        icon: const Icon(Icons.add_rounded),
-                        label: const Text('Activo'),
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton.icon(
-                        onPressed: () => _openIncomeDialog(),
-                        icon: const Icon(Icons.trending_up_rounded),
-                        label: const Text('Ingreso'),
-                      ),
-                    ],
+          Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: TabBar(
+                      onTap: (index) => _tabController.value = index,
+                      tabs: const [
+                        Tab(text: 'Activos', icon: Icon(Icons.home_work_rounded)),
+                        Tab(text: 'Ingresos', icon: Icon(Icons.trending_up_rounded)),
+                      ],
+                    ),
                   ),
-                  if (_message != null) ...[
-                    const SizedBox(height: 12),
-                    Text(_message!),
+                ),
+              ),
+              if (_message != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(_message!),
+                  ),
+                ),
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    RefreshIndicator(
+                      onRefresh: _loadData,
+                      child: ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+                        children: [
+                          if (_assets.isEmpty)
+                            const Card(
+                              child: Padding(
+                                padding: EdgeInsets.all(16),
+                                child: Text('Todavia no hay activos guardados en el celular.'),
+                              ),
+                            ),
+                          ..._assets.map(
+                            (asset) => Card(
+                              child: ListTile(
+                                leading: const Icon(Icons.home_work_rounded),
+                                title: Text(asset.name),
+                                subtitle: Text('${asset.owner ?? 'Sin propietario'} · ${asset.purchaseDate ?? 'Sin fecha'}'),
+                                trailing: SizedBox(
+                                  width: 168,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          '\$${asset.value.toStringAsFixed(2)}',
+                                          textAlign: TextAlign.end,
+                                        ),
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Editar',
+                                        onPressed: () => _openAssetDialog(asset: asset),
+                                        icon: const Icon(Icons.edit_outlined),
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Eliminar',
+                                        onPressed: () => _deleteAsset(asset),
+                                        icon: const Icon(Icons.delete_outline),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    RefreshIndicator(
+                      onRefresh: _loadData,
+                      child: ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+                        children: [
+                          if (_income.isEmpty)
+                            const Card(
+                              child: Padding(
+                                padding: EdgeInsets.all(16),
+                                child: Text('Todavia no hay ingresos guardados en el celular.'),
+                              ),
+                            ),
+                          ..._income.map(
+                            (income) => Card(
+                              child: ListTile(
+                                leading: const Icon(Icons.trending_up_rounded),
+                                title: Text(income.source),
+                                subtitle: Text('${income.userName ?? 'Sin usuario'} · ${income.incomeDate}'),
+                                trailing: SizedBox(
+                                  width: 168,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          '\$${income.amount.toStringAsFixed(2)}',
+                                          textAlign: TextAlign.end,
+                                        ),
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Editar',
+                                        onPressed: () => _openIncomeDialog(income: income),
+                                        icon: const Icon(Icons.edit_outlined),
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Eliminar',
+                                        onPressed: () => _deleteIncome(income),
+                                        icon: const Icon(Icons.delete_outline),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text('Activos / Inversiones', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 12),
-          if (_assets.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('Todavia no hay activos guardados en el celular.'),
-              ),
-            ),
-          ..._assets.map(
-            (asset) => Card(
-              child: ListTile(
-                leading: const Icon(Icons.home_work_rounded),
-                title: Text(asset.name),
-                subtitle: Text('${asset.owner ?? 'Sin propietario'} · ${asset.purchaseDate ?? 'Sin fecha'}'),
-                trailing: SizedBox(
-                  width: 168,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '\$${asset.value.toStringAsFixed(2)}',
-                          textAlign: TextAlign.end,
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Editar',
-                        onPressed: () => _openAssetDialog(asset: asset),
-                        icon: const Icon(Icons.edit_outlined),
-                      ),
-                      IconButton(
-                        tooltip: 'Eliminar',
-                        onPressed: () => _deleteAsset(asset),
-                        icon: const Icon(Icons.delete_outline),
-                      ),
-                    ],
-                  ),
                 ),
               ),
-            ),
+            ],
           ),
-          const SizedBox(height: 16),
-          Text('Ingresos', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 12),
-          if (_income.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('Todavia no hay ingresos guardados en el celular.'),
-              ),
-            ),
-          ..._income.map(
-            (income) => Card(
-              child: ListTile(
-                leading: const Icon(Icons.trending_up_rounded),
-                title: Text(income.source),
-                subtitle: Text('${income.userName ?? 'Sin usuario'} · ${income.incomeDate}'),
-                trailing: SizedBox(
-                  width: 168,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '\$${income.amount.toStringAsFixed(2)}',
-                          textAlign: TextAlign.end,
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Editar',
-                        onPressed: () => _openIncomeDialog(income: income),
-                        icon: const Icon(Icons.edit_outlined),
-                      ),
-                      IconButton(
-                        tooltip: 'Eliminar',
-                        onPressed: () => _deleteIncome(income),
-                        icon: const Icon(Icons.delete_outline),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+          Positioned(
+            right: 20,
+            bottom: 20,
+            child: ValueListenableBuilder<int>(
+              valueListenable: _tabController,
+              builder: (context, activeTab, _) {
+                final isAssetsTab = activeTab == 0;
+                return FloatingActionButton(
+                  onPressed: isAssetsTab ? () => _openAssetDialog() : () => _openIncomeDialog(),
+                  tooltip: isAssetsTab ? 'Agregar activo' : 'Agregar ingreso',
+                  child: const Icon(Icons.add_rounded),
+                );
+              },
             ),
           ),
         ],

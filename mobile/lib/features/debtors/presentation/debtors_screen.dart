@@ -12,6 +12,7 @@ class DebtorsScreen extends StatefulWidget {
 
 class _DebtorsScreenState extends State<DebtorsScreen> {
   final _repository = MobileDebtorsRepository();
+  final _tabController = ValueNotifier<int>(0);
 
   List<DebtorSummary> _debtors = [];
   List<SmallDebtSummary> _smallDebts = [];
@@ -23,6 +24,12 @@ class _DebtorsScreenState extends State<DebtorsScreen> {
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -297,146 +304,151 @@ class _DebtorsScreenState extends State<DebtorsScreen> {
 
     return DefaultTabController(
       length: 2,
-      child: RefreshIndicator(
-        onRefresh: _loadData,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
-          children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
+        children: [
+          Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: TabBar(
+                      onTap: (index) => _tabController.value = index,
+                      tabs: const [
+                        Tab(text: 'Deudores'),
+                        Tab(text: 'Deudas pequenas'),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              if (_message != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(_message!),
+                  ),
+                ),
+              Expanded(
+                child: TabBarView(
                   children: [
-                    if (_message != null) ...[
-                      const SizedBox(height: 12),
-                      Text(_message!),
-                    ],
+                    RefreshIndicator(
+                      onRefresh: _loadData,
+                      child: ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+                        children: [
+                          if (_debtors.isEmpty)
+                            const Card(
+                              child: Padding(
+                                padding: EdgeInsets.all(16),
+                                child: Text('Todavia no hay deudores guardados en el celular.'),
+                              ),
+                            ),
+                          ..._debtors.map(
+                            (debtor) => Card(
+                              child: ListTile(
+                                leading: const Icon(Icons.group_rounded),
+                                title: Text(debtor.name),
+                                subtitle: Text('${debtor.status} · ${debtor.dueDate ?? 'Sin fecha de vencimiento'}'),
+                                trailing: SizedBox(
+                                  width: 168,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          '\$${debtor.amountOwed.toStringAsFixed(2)}',
+                                          textAlign: TextAlign.end,
+                                        ),
+                                      ),
+                                      IconButton(
+                                        onPressed: () => _openDebtorDialog(debtor: debtor),
+                                        icon: const Icon(Icons.edit_outlined),
+                                      ),
+                                      IconButton(
+                                        onPressed: () => _deleteDebtor(debtor),
+                                        icon: const Icon(Icons.delete_outline),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    RefreshIndicator(
+                      onRefresh: _loadData,
+                      child: ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+                        children: [
+                          if (_smallDebts.isEmpty)
+                            const Card(
+                              child: Padding(
+                                padding: EdgeInsets.all(16),
+                                child: Text('Todavia no hay deudas pequenas guardadas en el celular.'),
+                              ),
+                            ),
+                          ..._smallDebts.map(
+                            (debt) => Card(
+                              child: ListTile(
+                                leading: const Icon(Icons.person_outline_rounded),
+                                title: Text(debt.lenderName),
+                                subtitle: Text('${debt.status} · ${debt.dueDate ?? 'Sin fecha de vencimiento'}'),
+                                trailing: SizedBox(
+                                  width: 168,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          '\$${debt.amount.toStringAsFixed(2)}',
+                                          textAlign: TextAlign.end,
+                                        ),
+                                      ),
+                                      IconButton(
+                                        onPressed: () => _openSmallDebtDialog(debt: debt),
+                                        icon: const Icon(Icons.edit_outlined),
+                                      ),
+                                      IconButton(
+                                        onPressed: () => _deleteSmallDebt(debt),
+                                        icon: const Icon(Icons.delete_outline),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
+            ],
+          ),
+          Positioned(
+            right: 20,
+            bottom: 20,
+            child: ValueListenableBuilder<int>(
+              valueListenable: _tabController,
+              builder: (context, activeTab, _) {
+                final isDebtorsTab = activeTab == 0;
+                return FloatingActionButton(
+                  onPressed: isDebtorsTab ? () => _openDebtorDialog() : () => _openSmallDebtDialog(),
+                  tooltip: isDebtorsTab ? 'Agregar deudor' : 'Agregar deuda pequena',
+                  child: const Icon(Icons.add_rounded),
+                );
+              },
             ),
-            const SizedBox(height: 16),
-            const TabBar(
-              tabs: [
-                Tab(text: 'Deudores'),
-                Tab(text: 'Deudas pequenas'),
-              ],
-            ),
-            SizedBox(
-              height: 640,
-              child: TabBarView(
-                children: [
-                  ListView(
-                    physics: const NeverScrollableScrollPhysics(),
-                    children: [
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: FilledButton.icon(
-                          onPressed: () => _openDebtorDialog(),
-                          icon: const Icon(Icons.add_rounded),
-                          label: const Text('Agregar'),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      if (_debtors.isEmpty)
-                        const Card(
-                          child: Padding(
-                            padding: EdgeInsets.all(16),
-                            child: Text('Todavia no hay deudores guardados en el celular.'),
-                          ),
-                        ),
-                      ..._debtors.map(
-                        (debtor) => Card(
-                          child: ListTile(
-                            leading: const Icon(Icons.group_rounded),
-                            title: Text(debtor.name),
-                            subtitle: Text('${debtor.status} · ${debtor.dueDate ?? 'Sin fecha de vencimiento'}'),
-                            trailing: SizedBox(
-                              width: 168,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      '\$${debtor.amountOwed.toStringAsFixed(2)}',
-                                      textAlign: TextAlign.end,
-                                    ),
-                                  ),
-                                  IconButton(
-                                    onPressed: () => _openDebtorDialog(debtor: debtor),
-                                    icon: const Icon(Icons.edit_outlined),
-                                  ),
-                                  IconButton(
-                                    onPressed: () => _deleteDebtor(debtor),
-                                    icon: const Icon(Icons.delete_outline),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  ListView(
-                    physics: const NeverScrollableScrollPhysics(),
-                    children: [
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: FilledButton.icon(
-                          onPressed: () => _openSmallDebtDialog(),
-                          icon: const Icon(Icons.add_rounded),
-                          label: const Text('Agregar'),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      if (_smallDebts.isEmpty)
-                        const Card(
-                          child: Padding(
-                            padding: EdgeInsets.all(16),
-                            child: Text('Todavia no hay deudas pequenas guardadas en el celular.'),
-                          ),
-                        ),
-                      ..._smallDebts.map(
-                        (debt) => Card(
-                          child: ListTile(
-                            leading: const Icon(Icons.person_outline_rounded),
-                            title: Text(debt.lenderName),
-                            subtitle: Text('${debt.status} · ${debt.dueDate ?? 'Sin fecha de vencimiento'}'),
-                            trailing: SizedBox(
-                              width: 168,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      '\$${debt.amount.toStringAsFixed(2)}',
-                                      textAlign: TextAlign.end,
-                                    ),
-                                  ),
-                                  IconButton(
-                                    onPressed: () => _openSmallDebtDialog(debt: debt),
-                                    icon: const Icon(Icons.edit_outlined),
-                                  ),
-                                  IconButton(
-                                    onPressed: () => _deleteSmallDebt(debt),
-                                    icon: const Icon(Icons.delete_outline),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

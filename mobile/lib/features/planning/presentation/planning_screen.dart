@@ -169,109 +169,110 @@ class _PlanningScreenState extends State<PlanningScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return RefreshIndicator(
-      onRefresh: _loadData,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  Row(
+    return Stack(
+      children: [
+        RefreshIndicator(
+          onRefresh: _loadData,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+            children: [
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
                     children: [
-                      Expanded(
-                        child: DropdownButtonFormField<int>(
-                          initialValue: _month,
-                          decoration: const InputDecoration(labelText: 'Mes'),
-                          items: List.generate(
-                            12,
-                            (index) => DropdownMenuItem(
-                              value: index + 1,
-                              child: Text('Mes ${index + 1}'),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<int>(
+                              initialValue: _month,
+                              decoration: const InputDecoration(labelText: 'Mes'),
+                              items: List.generate(
+                                12,
+                                (index) => DropdownMenuItem(
+                                  value: index + 1,
+                                  child: Text('Mes ${index + 1}'),
+                                ),
+                              ),
+                              onChanged: (value) {
+                                if (value == null) return;
+                                setState(() => _month = value);
+                                _loadData();
+                              },
                             ),
                           ),
-                          onChanged: (value) {
-                            if (value == null) return;
-                            setState(() => _month = value);
-                            _loadData();
-                          },
-                        ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextField(
+                              controller: _yearController,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(labelText: 'Anio'),
+                              onSubmitted: (value) {
+                                final parsed = int.tryParse(value);
+                                if (parsed == null) return;
+                                setState(() => _year = parsed);
+                                _loadData();
+                              },
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextField(
-                          controller: _yearController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(labelText: 'Anio'),
-                          onSubmitted: (value) {
-                            final parsed = int.tryParse(value);
-                            if (parsed == null) return;
-                            setState(() => _year = parsed);
-                            _loadData();
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      const Spacer(),
-                      FilledButton.icon(
-                        onPressed: () => _openPlanDialog(),
-                        icon: const Icon(Icons.add_rounded),
-                        label: const Text('Agregar'),
-                      ),
-                    ],
-                  ),
-                  if (_message != null) ...[
-                    const SizedBox(height: 12),
-                    Text(_message!),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (_plans.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('No hay presupuestos guardados en el celular para este periodo.'),
-              ),
-            ),
-          ..._plans.map(
-            (plan) => Card(
-              child: ListTile(
-                title: Text(plan['category_name']?.toString() ?? 'Sin categoria'),
-                subtitle: Text(
-                  'Planificado: \$${((plan['planned_amount'] as num?) ?? 0).toStringAsFixed(2)} · Ejecutado: \$${((plan['actual_amount'] as num?) ?? 0).toStringAsFixed(2)}',
-                ),
-                trailing: SizedBox(
-                  width: 108,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      IconButton(
-                        tooltip: 'Editar',
-                        onPressed: () => _openPlanDialog(plan: plan),
-                        icon: const Icon(Icons.edit_outlined),
-                      ),
-                      IconButton(
-                        tooltip: 'Eliminar',
-                        onPressed: () => _deletePlan(plan),
-                        icon: const Icon(Icons.delete_outline_rounded),
-                      ),
+                      if (_message != null) ...[
+                        const SizedBox(height: 12),
+                        Text(_message!),
+                      ],
                     ],
                   ),
                 ),
               ),
-            ),
+              const SizedBox(height: 16),
+              if (_plans.isEmpty)
+                const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text('No hay presupuestos guardados en el celular para este periodo.'),
+                  ),
+                ),
+              ..._plans.map(
+                (plan) => Card(
+                  child: ListTile(
+                    title: Text(plan['category_name']?.toString() ?? 'Sin categoria'),
+                    subtitle: Text(
+                      'Planificado: \$${((plan['planned_amount'] as num?) ?? 0).toStringAsFixed(2)} · Ejecutado: \$${((plan['actual_amount'] as num?) ?? 0).toStringAsFixed(2)}',
+                    ),
+                    trailing: SizedBox(
+                      width: 108,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          IconButton(
+                            tooltip: 'Editar',
+                            onPressed: () => _openPlanDialog(plan: plan),
+                            icon: const Icon(Icons.edit_outlined),
+                          ),
+                          IconButton(
+                            tooltip: 'Eliminar',
+                            onPressed: () => _deletePlan(plan),
+                            icon: const Icon(Icons.delete_outline_rounded),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+        Positioned(
+          right: 20,
+          bottom: 20,
+          child: FloatingActionButton(
+            onPressed: _openPlanDialog,
+            child: const Icon(Icons.add_rounded),
+          ),
+        ),
+      ],
     );
   }
 }

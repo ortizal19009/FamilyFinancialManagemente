@@ -487,38 +487,16 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
 
     return DefaultTabController(
       length: 2,
-      child: Column(
+      child: Stack(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    ValueListenableBuilder<int>(
-                      valueListenable: _tabController,
-                      builder: (context, activeTab, _) {
-                        final isCardsTab = activeTab == 0;
-                        return Align(
-                          alignment: Alignment.centerRight,
-                          child: FilledButton.icon(
-                            onPressed: _saving
-                                ? null
-                                : isCardsTab
-                                    ? () => _openCardDialog()
-                                    : () => _openLoanDialog(),
-                            icon: Icon(
-                              isCardsTab ? Icons.add_card_rounded : Icons.request_quote_rounded,
-                            ),
-                            label: Text(isCardsTab ? 'Agregar tarjeta' : 'Agregar prestamo'),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TabBar(
+          Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: TabBar(
                       indicatorSize: TabBarIndicatorSize.tab,
                       onTap: (index) => _tabController.value = index,
                       tabs: const [
@@ -526,27 +504,25 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
                         Tab(text: 'Prestamos', icon: Icon(Icons.request_quote_rounded)),
                       ],
                     ),
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ),
-          if (_message != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(_message!),
-              ),
-            ),
-          Expanded(
-            child: TabBarView(
-              children: [
+              if (_message != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(_message!),
+                  ),
+                ),
+              Expanded(
+                child: TabBarView(
+                  children: [
                     RefreshIndicator(
                       onRefresh: _loadData,
                       child: ListView(
                         physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
                         children: [
                           if (_cards.isEmpty)
                             const Card(
@@ -591,7 +567,7 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
                   onRefresh: _loadData,
                   child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
                     children: [
                       if (_loans.isEmpty)
                         const Card(
@@ -645,7 +621,28 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
                     ],
                   ),
                 ),
-              ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          Positioned(
+            right: 20,
+            bottom: 20,
+            child: ValueListenableBuilder<int>(
+              valueListenable: _tabController,
+              builder: (context, activeTab, _) {
+                final isCardsTab = activeTab == 0;
+                return FloatingActionButton(
+                  onPressed: _saving
+                      ? null
+                      : isCardsTab
+                          ? () => _openCardDialog()
+                          : () => _openLoanDialog(),
+                  tooltip: isCardsTab ? 'Agregar tarjeta' : 'Agregar prestamo',
+                  child: const Icon(Icons.add_rounded),
+                );
+              },
             ),
           ),
         ],
