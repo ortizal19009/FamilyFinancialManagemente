@@ -108,7 +108,16 @@ class _BackendSettingsScreenState extends State<BackendSettingsScreen> {
     });
 
     try {
-      await _backupService.importBackup();
+      final imported = await _backupService.importBackup();
+      if (!imported) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _message = 'Importacion cancelada';
+        });
+        return;
+      }
       await AppServices.syncService.refreshState();
       await _loadCurrentValue();
       if (!mounted) {
