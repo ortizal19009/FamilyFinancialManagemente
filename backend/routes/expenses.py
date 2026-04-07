@@ -366,6 +366,33 @@ def get_categories():
     } for c in categories]), 200
 
 
+@expenses_bp.route('/categories', methods=['POST'])
+@jwt_required()
+def create_category():
+    data = request.get_json() or {}
+    name = (data.get('name') or '').strip()
+    icon = (data.get('icon') or '').strip() or None
+
+    if not name:
+        return jsonify({"msg": "El nombre del rubro es obligatorio"}), 400
+
+    existing = Category.query.filter(func.lower(Category.name) == name.lower()).first()
+    if existing:
+        return jsonify({
+            "msg": "La categoria ya existe",
+            "id": existing.id,
+            "merged": True,
+        }), 200
+
+    category = Category(name=name, icon=icon)
+    db.session.add(category)
+    db.session.commit()
+    return jsonify({
+        "msg": "Categoria creada correctamente",
+        "id": category.id,
+    }), 201
+
+
 @expenses_bp.route('/analyze-receipt', methods=['POST'])
 @jwt_required()
 def analyze_receipt():

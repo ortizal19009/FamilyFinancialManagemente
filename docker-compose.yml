@@ -2,6 +2,7 @@ services:
   db:
     image: postgres:16-alpine
     container_name: ffm-db
+    profiles: ["local-db"]
     restart: unless-stopped
     environment:
       POSTGRES_DB: FFM_DB
@@ -24,11 +25,8 @@ services:
       dockerfile: backend/Dockerfile
     container_name: ffm-backend
     restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+psycopg://postgres:12345@db:5432/FFM_DB
+      DATABASE_URL: postgresql+psycopg://postgres:12345@192.168.1.79:5432/FFM_DB
       SECRET_KEY: dev-key-very-secret
       JWT_SECRET_KEY: jwt-dev-key
       UPLOAD_FOLDER: /app/backend/uploads
@@ -51,4 +49,3 @@ services:
 volumes:
   postgres_data:
   backend_uploads:
-

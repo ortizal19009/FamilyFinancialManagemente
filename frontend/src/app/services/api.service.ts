@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 
@@ -15,6 +15,15 @@ export interface DashboardSummary {
   recentExpenses: any[];
 }
 
+export interface ReportExportParams {
+  type: 'summary' | 'movements' | 'accounts' | 'expenses' | 'planning';
+  format: 'pdf' | 'xml';
+  date_from?: string;
+  date_to?: string;
+  month?: number;
+  year?: number;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -24,6 +33,30 @@ export class ApiService {
 
   getDashboardSummary(): Observable<DashboardSummary> {
     return this.http.get<DashboardSummary>(`${this.apiUrl}/dashboard/summary`);
+  }
+
+  exportReport(params: ReportExportParams): Observable<Blob> {
+    let httpParams = new HttpParams()
+      .set('type', params.type)
+      .set('format', params.format);
+
+    if (params.date_from) {
+      httpParams = httpParams.set('date_from', params.date_from);
+    }
+    if (params.date_to) {
+      httpParams = httpParams.set('date_to', params.date_to);
+    }
+    if (params.month) {
+      httpParams = httpParams.set('month', params.month);
+    }
+    if (params.year) {
+      httpParams = httpParams.set('year', params.year);
+    }
+
+    return this.http.get(`${this.apiUrl}/reports/export`, {
+      params: httpParams,
+      responseType: 'blob'
+    });
   }
 
   // --- Bancos y Cuentas ---

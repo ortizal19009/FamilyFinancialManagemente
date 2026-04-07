@@ -20,6 +20,8 @@ class MobileExpensesRepository {
   static const _expensesCacheKey = 'mobile_expenses_cache';
   static const _categoriesCacheKey = 'mobile_expense_categories_cache';
 
+  int _nextLocalCategoryId() => -DateTime.now().microsecondsSinceEpoch;
+
   Future<List<ExpenseCategory>> loadCategories() async {
     try {
       final response = await _apiClient.get('/expenses/categories');
@@ -35,6 +37,39 @@ class MobileExpensesRepository {
       final cached = await _cacheStorage.getCollection(_categoriesCacheKey);
       return cached.map(ExpenseCategory.fromMap).toList();
     }
+  }
+
+  Future<ExpenseCategory> createCategory({
+    required String name,
+    String? icon,
+  }) async {
+    final localCategory = ExpenseCategory(
+      id: _nextLocalCategoryId(),
+      name: name,
+      icon: icon,
+    );
+    final cached = await _cacheStorage.getCollection(_categoriesCacheKey);
+    final updated = [
+      localCategory.toMap(),
+      ...cached.where(
+        (item) => (item['name'] as String? ?? '').trim().toLowerCase() != name.trim().toLowerCase(),
+      ),
+    ];
+    await _cacheStorage.saveCollection(_categoriesCacheKey, updated);
+    await AppServices.syncService.enqueue(
+      OfflineOperation(
+        id: 'expense-category-${localCategory.id}',
+        module: 'expenses',
+        method: 'POST',
+        path: '/expenses/categories',
+        payload: {
+          'name': name,
+          'icon': icon,
+        },
+        createdAt: DateTime.now(),
+      ),
+    );
+    return localCategory;
   }
 
   Future<List<MobileExpenseRecord>> loadExpenses() async {

@@ -13,6 +13,7 @@ class CardsLoansScreen extends StatefulWidget {
 
 class _CardsLoansScreenState extends State<CardsLoansScreen> {
   final _repository = MobileCardsRepository();
+  final _tabController = ValueNotifier<int>(0);
 
   List<CardSummary> _cards = [];
   List<LoanSummary> _loans = [];
@@ -26,6 +27,12 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -478,131 +485,167 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return RefreshIndicator(
-      onRefresh: _loadData,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
+    return DefaultTabController(
+      length: 2,
+      child: Column(
         children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Spacer(),
-                      FilledButton.icon(
-                        onPressed: _saving ? null : () => _openCardDialog(),
-                        icon: const Icon(Icons.add_rounded),
-                        label: const Text('Tarjeta'),
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton.icon(
-                        onPressed: _saving ? null : () => _openLoanDialog(),
-                        icon: const Icon(Icons.request_quote_rounded),
-                        label: const Text('Prestamo'),
-                      ),
-                    ],
-                  ),
-                  if (_message != null) ...[
-                    const SizedBox(height: 12),
-                    Text(_message!),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text('Tarjetas', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 12),
-          if (_cards.isEmpty)
-            const Card(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Card(
               child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('Todavia no hay tarjetas guardadas en el celular.'),
-              ),
-            ),
-          ..._cards.map(
-            (card) => Card(
-              child: ListTile(
-                leading: const Icon(Icons.credit_card_rounded),
-                title: Text('${card.cardName} · ${card.bankName}'),
-                subtitle: Text(
-                  '${card.cardType ?? 'Tarjeta'} · ${card.owner ?? 'Sin propietario'} · **** ${card.lastFourDigits ?? '----'}',
-                ),
-                trailing: SizedBox(
-                  width: 96,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        tooltip: 'Editar',
-                        onPressed: () => _openCardDialog(card: card),
-                        icon: const Icon(Icons.edit_outlined),
-                      ),
-                      IconButton(
-                        tooltip: 'Eliminar',
-                        onPressed: () => _deleteCard(card),
-                        icon: const Icon(Icons.delete_outline),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text('Prestamos', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 12),
-          if (_loans.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('Todavia no hay prestamos guardados en el celular.'),
-              ),
-            ),
-          ..._loans.map(
-            (loan) => Card(
-              child: ListTile(
-                leading: const Icon(Icons.request_quote_rounded),
-                title: Text(loan.description),
-                subtitle: Text(
-                  '${loan.bankName} · ${loan.totalInstallments - loan.pendingInstallments}/${loan.totalInstallments} cuotas pagadas',
-                ),
-                trailing: SizedBox(
-                  width: 164,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text('\$${loan.initialAmount.toStringAsFixed(2)}'),
-                            Text(
-                              'Mensual \$${loan.monthlyPayment.toStringAsFixed(2)}',
-                              style: Theme.of(context).textTheme.bodySmall,
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ValueListenableBuilder<int>(
+                      valueListenable: _tabController,
+                      builder: (context, activeTab, _) {
+                        final isCardsTab = activeTab == 0;
+                        return Align(
+                          alignment: Alignment.centerRight,
+                          child: FilledButton.icon(
+                            onPressed: _saving
+                                ? null
+                                : isCardsTab
+                                    ? () => _openCardDialog()
+                                    : () => _openLoanDialog(),
+                            icon: Icon(
+                              isCardsTab ? Icons.add_card_rounded : Icons.request_quote_rounded,
                             ),
-                          ],
+                            label: Text(isCardsTab ? 'Agregar tarjeta' : 'Agregar prestamo'),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TabBar(
+                      indicatorSize: TabBarIndicatorSize.tab,
+                      onTap: (index) => _tabController.value = index,
+                      tabs: const [
+                        Tab(text: 'Tarjetas', icon: Icon(Icons.credit_card_rounded)),
+                        Tab(text: 'Prestamos', icon: Icon(Icons.request_quote_rounded)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (_message != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(_message!),
+              ),
+            ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                    RefreshIndicator(
+                      onRefresh: _loadData,
+                      child: ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.all(16),
+                        children: [
+                          if (_cards.isEmpty)
+                            const Card(
+                              child: Padding(
+                                padding: EdgeInsets.all(16),
+                                child: Text('Todavia no hay tarjetas guardadas en el celular.'),
+                              ),
+                            ),
+                          ..._cards.map(
+                            (card) => Card(
+                              child: ListTile(
+                                leading: const Icon(Icons.credit_card_rounded),
+                                title: Text('${card.cardName} · ${card.bankName}'),
+                                subtitle: Text(
+                                  '${card.cardType ?? 'Tarjeta'} · ${card.owner ?? 'Sin propietario'} · **** ${card.lastFourDigits ?? '----'}',
+                                ),
+                                trailing: SizedBox(
+                                  width: 96,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        tooltip: 'Editar',
+                                        onPressed: () => _openCardDialog(card: card),
+                                        icon: const Icon(Icons.edit_outlined),
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Eliminar',
+                                        onPressed: () => _deleteCard(card),
+                                        icon: const Icon(Icons.delete_outline),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                RefreshIndicator(
+                  onRefresh: _loadData,
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      if (_loans.isEmpty)
+                        const Card(
+                          child: Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Text('Todavia no hay prestamos guardados en el celular.'),
+                          ),
+                        ),
+                      ..._loans.map(
+                        (loan) => Card(
+                          child: ListTile(
+                            leading: const Icon(Icons.request_quote_rounded),
+                            title: Text(loan.description),
+                            subtitle: Text(
+                              '${loan.bankName} · ${loan.totalInstallments - loan.pendingInstallments}/${loan.totalInstallments} cuotas pagadas',
+                            ),
+                            trailing: SizedBox(
+                              width: 164,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      children: [
+                                        Text('\$${loan.initialAmount.toStringAsFixed(2)}'),
+                                        Text(
+                                          'Mensual \$${loan.monthlyPayment.toStringAsFixed(2)}',
+                                          style: Theme.of(context).textTheme.bodySmall,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Editar',
+                                    onPressed: () => _openLoanDialog(loan: loan),
+                                    icon: const Icon(Icons.edit_outlined),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Eliminar',
+                                    onPressed: () => _deleteLoan(loan),
+                                    icon: const Icon(Icons.delete_outline),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                      IconButton(
-                        tooltip: 'Editar',
-                        onPressed: () => _openLoanDialog(loan: loan),
-                        icon: const Icon(Icons.edit_outlined),
-                      ),
-                      IconButton(
-                        tooltip: 'Eliminar',
-                        onPressed: () => _deleteLoan(loan),
-                        icon: const Icon(Icons.delete_outline),
-                      ),
                     ],
                   ),
                 ),
-              ),
+              ],
             ),
           ),
         ],

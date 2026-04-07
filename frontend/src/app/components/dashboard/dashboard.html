@@ -147,6 +147,65 @@
     <!-- Quick Actions / Mini Stats -->
     <div class="col-md-4">
       <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body p-4">
+          <div class="d-flex align-items-center justify-content-between mb-3">
+            <div>
+              <h5 class="fw-bold mb-1">Reportes</h5>
+              <p class="text-muted small mb-0">Descarga tus datos en PDF o XML.</p>
+            </div>
+            <div class="report-badge">
+              <i class="bi bi-file-earmark-arrow-down"></i>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small text-muted fw-semibold">Tipo de reporte</label>
+            <select class="form-select" [(ngModel)]="reportForm.type">
+              <option *ngFor="let option of reportTypeOptions" [value]="option.value">{{ option.label }}</option>
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small text-muted fw-semibold">Formato</label>
+            <select class="form-select" [(ngModel)]="reportForm.format">
+              <option *ngFor="let option of reportFormatOptions" [value]="option.value">{{ option.label }}</option>
+            </select>
+          </div>
+
+          <div *ngIf="requiresDateRange()" class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label small text-muted fw-semibold">Desde</label>
+              <input type="date" class="form-control" [(ngModel)]="reportForm.date_from" />
+            </div>
+            <div class="col-6">
+              <label class="form-label small text-muted fw-semibold">Hasta</label>
+              <input type="date" class="form-control" [(ngModel)]="reportForm.date_to" />
+            </div>
+          </div>
+
+          <div *ngIf="requiresMonthYear()" class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label small text-muted fw-semibold">Mes</label>
+              <input type="number" min="1" max="12" class="form-control" [(ngModel)]="reportForm.month" />
+            </div>
+            <div class="col-6">
+              <label class="form-label small text-muted fw-semibold">Año</label>
+              <input type="number" min="2000" max="2100" class="form-control" [(ngModel)]="reportForm.year" />
+            </div>
+          </div>
+
+          <button class="btn btn-primary w-100 py-2 shadow-sm" [disabled]="isExportingReport" (click)="exportReport()">
+            <i class="bi bi-download me-2"></i>
+            {{ isExportingReport ? 'Generando...' : 'Exportar reporte' }}
+          </button>
+
+          <div *ngIf="reportFeedback" class="small mt-3 text-muted">
+            {{ reportFeedback }}
+          </div>
+        </div>
+      </div>
+
+      <div class="card border-0 shadow-sm mb-4">
         <div class="card-body p-4 text-center">
           <div class="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
             <i class="bi bi-plus-lg h3 mb-0"></i>
