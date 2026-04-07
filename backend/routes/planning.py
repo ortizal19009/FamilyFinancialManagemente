@@ -95,3 +95,46 @@ def create_or_update_plan():
     
     db.session.commit()
     return jsonify({"msg": "Planning saved successfully", "id": plan.id}), 201
+
+
+@planning_bp.route('/<int:plan_id>', methods=['PUT'])
+@jwt_required()
+def update_plan(plan_id):
+    data = request.get_json() or {}
+    plan = db.session.get(MonthlyPlanning, plan_id)
+    if not plan:
+        return jsonify({"msg": "Plan not found"}), 404
+
+    if not data.get('category_id') or data.get('planned_amount') in [None, ''] or not data.get('month') or not data.get('year'):
+        return jsonify({"msg": "category_id, planned_amount, month and year are required"}), 400
+
+    duplicate = MonthlyPlanning.query.filter_by(
+        category_id=data['category_id'],
+        month=data['month'],
+        year=data['year']
+    ).filter(MonthlyPlanning.id != plan_id).first()
+
+    if duplicate:
+        duplicate.planned_amount = data['planned_amount']
+        db.session.delete(plan)
+        db.session.commit()
+        return jsonify({"msg": "Planning merged successfully", "id": duplicate.id}), 200
+
+    plan.category_id = data['category_id']
+    plan.planned_amount = data['planned_amount']
+    plan.month = data['month']
+    plan.year = data['year']
+    db.session.commit()
+    return jsonify({"msg": "Planning updated successfully"}), 200
+
+
+@planning_bp.route('/<int:plan_id>', methods=['DELETE'])
+@jwt_required()
+def delete_plan(plan_id):
+    plan = db.session.get(MonthlyPlanning, plan_id)
+    if not plan:
+        return jsonify({"msg": "Plan not found"}), 404
+
+    db.session.delete(plan)
+    db.session.commit()
+    return jsonify({"msg": "Planning deleted successfully"}), 200

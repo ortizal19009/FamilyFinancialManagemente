@@ -1,15 +1,172 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/widgets/module_placeholder.dart';
+import '../data/family_repository.dart';
 
-class FamilyScreen extends StatelessWidget {
+class FamilyScreen extends StatefulWidget {
   const FamilyScreen({super.key});
 
   @override
+  State<FamilyScreen> createState() => _FamilyScreenState();
+}
+
+class _FamilyScreenState extends State<FamilyScreen> {
+  final _repository = FamilyRepository();
+  List<Map<String, dynamic>> _members = [];
+  bool _loading = true;
+  String? _message;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final members = await _repository.loadMembers();
+      if (!mounted) return;
+      setState(() {
+        _members = members;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _message = error.toString().replaceFirst('Exception: ', '');
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _openMemberDialog({Map<String, dynamic>? member}) async {
+    final nameController = TextEditingController(text: member?['name']?.toString() ?? '');
+    final relationshipController = TextEditingController(text: member?['relationship']?.toString() ?? 'Yo');
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(member == null ? 'Nuevo integrante' : 'Editar integrante'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: 'Nombre'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: relationshipController,
+              decoration: const InputDecoration(labelText: 'Parentesco'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Guardar')),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      if (member == null) {
+        await _repository.createMember(
+          name: nameController.text.trim(),
+          relationship: relationshipController.text.trim(),
+        );
+        _message = 'Integrante agregado correctamente';
+      } else {
+        await _repository.updateMember(
+          id: member['id'] as int,
+          name: nameController.text.trim(),
+          relationship: relationshipController.text.trim(),
+        );
+        _message = 'Integrante actualizado correctamente';
+      }
+      await _loadData();
+    } catch (error) {
+      setState(() => _message = error.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  Future<void> _deleteMember(Map<String, dynamic> member) async {
+    try {
+      await _repository.deleteMember(member['id'] as int);
+      _message = 'Integrante eliminado correctamente';
+      await _loadData();
+    } catch (error) {
+      setState(() => _message = error.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return const ModulePlaceholder(
-      title: 'Familia',
-      description: 'Pantalla base para gestionar miembros de familia igual que en web.',
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(child: Text('Miembros de familia', style: Theme.of(context).textTheme.titleLarge)),
+                      FilledButton.icon(
+                        onPressed: () => _openMemberDialog(),
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('Agregar'),
+                      ),
+                    ],
+                  ),
+                  if (_message != null) ...[
+                    const SizedBox(height: 12),
+                    Text(_message!),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (_members.isEmpty)
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('No hay integrantes registrados.'),
+              ),
+            ),
+          ..._members.map(
+            (member) => Card(
+              child: ListTile(
+                leading: const Icon(Icons.family_restroom_rounded),
+                title: Text(member['name']?.toString() ?? ''),
+                subtitle: Text(member['relationship']?.toString() ?? ''),
+                trailing: PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'edit') {
+                      _openMemberDialog(member: member);
+                    } else if (value == 'delete') {
+                      _deleteMember(member);
+                    }
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(value: 'edit', child: Text('Editar')),
+                    PopupMenuItem(value: 'delete', child: Text('Eliminar')),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

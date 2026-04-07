@@ -1,9 +1,9 @@
-import 'package:flutter/foundation.dart';
-
 import '../../../core/app_services.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/offline/local_cache_storage.dart';
 import '../../../core/offline/offline_operation.dart';
+import '../../banks/domain/bank_models.dart';
+import '../../cards/domain/cards_models.dart';
 import '../domain/expense_category.dart';
 import '../domain/mobile_expense_record.dart';
 
@@ -55,6 +55,11 @@ class MobileExpensesRepository {
           paymentMethod: map['payment_method'] as String? ?? 'Efectivo',
           expenseDate: map['expense_date'] as String? ?? '',
           syncStatus: 'synced',
+          items: ((map['items'] as List?) ?? const [])
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList(),
+          cardId: map['card_id'] as int?,
+          bankAccountId: map['bank_account_id'] as int?,
         );
       }).toList();
 
@@ -74,11 +79,30 @@ class MobileExpensesRepository {
 
   Future<void> addExpenseOffline({
     required String description,
-    required double amount,
-    required ExpenseCategory category,
+    required List<Map<String, dynamic>> items,
     required String paymentMethod,
     required String expenseDate,
+    int? cardId,
+    int? bankAccountId,
+    String? receiptPath,
   }) async {
+    if (receiptPath != null && receiptPath.isNotEmpty) {
+      await _apiClient.postMultipart(
+        '/expenses/',
+        fields: {
+          'description': description,
+          'payment_method': paymentMethod,
+          'expense_date': expenseDate,
+          'card_id': cardId,
+          'bank_account_id': bankAccountId,
+          'items': items,
+        },
+        fileField: 'receipt',
+        filePath: receiptPath,
+      );
+      return;
+    }
+
     final localId = 'local-${DateTime.now().millisecondsSinceEpoch}';
     final operation = OfflineOperation(
       id: localId,
@@ -89,12 +113,9 @@ class MobileExpensesRepository {
         'description': description,
         'payment_method': paymentMethod,
         'expense_date': expenseDate,
-        'items': [
-          {
-            'category_id': category.id,
-            'amount': amount,
-          },
-        ],
+        'card_id': cardId,
+        'bank_account_id': bankAccountId,
+        'items': items,
       },
       createdAt: DateTime.now(),
     );
@@ -102,15 +123,29 @@ class MobileExpensesRepository {
     await AppServices.syncService.enqueue(operation);
 
     final cached = await _cacheStorage.getCollection(_expensesCacheKey);
+    final firstItem = items.first;
+    final amount = (firstItem['amount'] as num?)?.toDouble() ?? 0;
+    final categoryId = firstItem['category_id'] as int? ?? 0;
+    final matchedCategory = await loadCategories();
+    final categoryName = matchedCategory
+        .where((item) => item.id == categoryId)
+        .map((item) => item.name)
+        .firstWhere(
+          (item) => item.isNotEmpty,
+          orElse: () => '',
+        );
     final localExpense = MobileExpenseRecord(
       localId: localId,
       description: description,
       amount: amount,
-      categoryId: category.id,
-      categoryName: category.name,
+      categoryId: categoryId,
+      categoryName: categoryName,
       paymentMethod: paymentMethod,
       expenseDate: expenseDate,
       syncStatus: 'pending',
+      items: items,
+      cardId: cardId,
+      bankAccountId: bankAccountId,
     );
 
     final updated = [
@@ -128,5 +163,42 @@ class MobileExpensesRepository {
         .map(MobileExpenseRecord.fromMap)
         .where((item) => item.syncStatus != 'synced' && pendingIds.contains(item.localId))
         .toList();
+  }
+
+  Future<List<CardSummary>> loadCards() async {
+    final response = await _apiClient.get('/cards_loans/cards');
+    return (response as List<dynamic>)
+        .map((item) => CardSummary.fromMap(Map<String, dynamic>.from(item as Map)))
+        .toList();
+  }
+
+  Future<List<BankAccountSummary>> loadAccounts() async {
+    final response = await _apiClient.get('/banks/accounts');
+    return (response as List<dynamic>)
+        .map((item) => BankAccountSummary.fromMap(Map<String, dynamic>.from(item as Map)))
+        .toList();
+  }
+
+  Future<void> updateExpense({
+    required int expenseId,
+    required String description,
+    required String paymentMethod,
+    required String expenseDate,
+    required List<Map<String, dynamic>> items,
+    int? cardId,
+    int? bankAccountId,
+  }) async {
+    await _apiClient.put('/expenses/$expenseId', {
+      'description': description,
+      'payment_method': paymentMethod,
+      'expense_date': expenseDate,
+      'card_id': cardId,
+      'bank_account_id': bankAccountId,
+      'items': items,
+    });
+  }
+
+  Future<void> deleteExpense(int expenseId) async {
+    await _apiClient.delete('/expenses/$expenseId');
   }
 }

@@ -90,6 +90,26 @@ class Asset(db.Model):
     purchase_date = db.Column(db.Date)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+
+class Investment(db.Model):
+    __tablename__ = 'investments'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'))
+    institution = db.Column(db.String(120), nullable=False)
+    investment_type = db.Column(db.String(50), nullable=False)
+    title = db.Column(db.String(150), nullable=False)
+    owner = db.Column(db.String(100))
+    invested_amount = db.Column(db.Numeric(15, 2), nullable=False)
+    current_value = db.Column(db.Numeric(15, 2), nullable=False, default=0.00)
+    expected_return_rate = db.Column(db.Numeric(5, 2))
+    start_date = db.Column(db.Date)
+    end_date = db.Column(db.Date)
+    status = db.Column(db.String(30), default='activa')
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref='investments', lazy=True)
+
 class Category(db.Model):
     __tablename__ = 'categories'
     id = db.Column(db.Integer, primary_key=True)

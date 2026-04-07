@@ -38,6 +38,7 @@ export class ExpensesComponent implements OnInit {
 
   loading = false;
   analyzingReceipt = false;
+  editingExpenseId: number | null = null;
   successMsg = '';
   errorMsg = '';
   selectedReceipt: File | null = null;
@@ -56,6 +57,27 @@ export class ExpensesComponent implements OnInit {
 
   onSubmit() {
     this.loading = true;
+    this.newExpense.card_id = this.usesCardPayment() ? this.newExpense.card_id : null;
+    this.newExpense.bank_account_id = this.usesAccountPayment() ? this.newExpense.bank_account_id : null;
+
+    if (this.editingExpenseId !== null) {
+      this.apiService.updateExpense(this.editingExpenseId, this.newExpense).subscribe({
+        next: () => {
+          this.successMsg = 'Gasto actualizado correctamente';
+          this.resetForm();
+          this.loadData();
+          this.loading = false;
+          setTimeout(() => this.successMsg = '', 3000);
+        },
+        error: (err) => {
+          this.errorMsg = err?.error?.msg || 'Error al actualizar el gasto';
+          this.loading = false;
+          setTimeout(() => this.errorMsg = '', 3000);
+        }
+      });
+      return;
+    }
+
     const formData = new FormData();
     formData.append('payload', JSON.stringify(this.newExpense));
     if (this.selectedReceipt) {
@@ -94,6 +116,7 @@ export class ExpensesComponent implements OnInit {
     };
     this.selectedReceipt = null;
     this.receiptAnalysis = null;
+    this.editingExpenseId = null;
   }
 
   addExpenseItem() {
@@ -133,6 +156,31 @@ export class ExpensesComponent implements OnInit {
   clearReceipt() {
     this.selectedReceipt = null;
     this.receiptAnalysis = null;
+  }
+
+  usesCardPayment(): boolean {
+    return this.newExpense.payment_method === 'Tarjeta Crédito' || this.newExpense.payment_method === 'Tarjeta Débito';
+  }
+
+  usesAccountPayment(): boolean {
+    return this.newExpense.payment_method === 'Banca Móvil';
+  }
+
+  onPaymentMethodChange() {
+    if (!this.usesCardPayment()) {
+      this.newExpense.card_id = null;
+    }
+    if (!this.usesAccountPayment()) {
+      this.newExpense.bank_account_id = null;
+    }
+  }
+
+  getSelectedCard(): any | null {
+    return this.cards.find(card => card.id === this.newExpense.card_id) ?? null;
+  }
+
+  getSelectedAccount(): any | null {
+    return this.accounts.find(account => account.id === this.newExpense.bank_account_id) ?? null;
   }
 
   analyzeReceipt() {
@@ -201,6 +249,53 @@ export class ExpensesComponent implements OnInit {
       },
       error: () => {
         this.errorMsg = 'No se pudo abrir el comprobante';
+        setTimeout(() => this.errorMsg = '', 3000);
+      }
+    });
+  }
+
+  startEditExpense(expense: any) {
+    this.editingExpenseId = expense.id;
+    this.newExpense = {
+      description: expense.description ?? '',
+      payment_method: expense.payment_method ?? 'Efectivo',
+      expense_date: expense.expense_date ?? new Date().toISOString().split('T')[0],
+      card_id: expense.card_id ?? null,
+      bank_account_id: expense.bank_account_id ?? null,
+      items: (expense.items?.length ? expense.items : [{
+        category_id: expense.category_id ?? null,
+        amount: expense.total_amount ?? expense.amount ?? null
+      }]).map((item: any) => ({
+        category_id: item.category_id ?? null,
+        amount: item.amount ?? null
+      }))
+    };
+    this.selectedReceipt = null;
+    this.receiptAnalysis = null;
+    this.onPaymentMethodChange();
+  }
+
+  cancelEditExpense() {
+    this.resetForm();
+  }
+
+  deleteExpense(expense: any) {
+    const confirmed = window.confirm(`¿Deseas eliminar el gasto "${expense.description}"?`);
+    if (!confirmed) {
+      return;
+    }
+
+    this.apiService.deleteExpense(expense.id).subscribe({
+      next: () => {
+        this.successMsg = 'Gasto eliminado correctamente';
+        if (this.editingExpenseId === expense.id) {
+          this.resetForm();
+        }
+        this.loadData();
+        setTimeout(() => this.successMsg = '', 3000);
+      },
+      error: (error) => {
+        this.errorMsg = error?.error?.msg || 'Error al eliminar el gasto';
         setTimeout(() => this.errorMsg = '', 3000);
       }
     });

@@ -22,7 +22,7 @@ class BackendReachabilityService {
     }
 
     try {
-      final baseUri = Uri.parse(ApiConfig.baseUrl);
+      final baseUri = Uri.parse(await ApiConfig.getBaseUrl());
       final healthUri = baseUri.replace(
         path: '/health',
         query: null,

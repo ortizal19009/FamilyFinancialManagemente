@@ -9,6 +9,8 @@ export interface DashboardSummary {
     totalDebt: number;
     monthlyExpenses: number;
     totalAssets: number;
+    investmentsCurrentValue: number;
+    investmentsInvestedAmount: number;
   };
   recentExpenses: any[];
 }
@@ -70,6 +72,14 @@ export class ApiService {
     return this.http.post(`${this.apiUrl}/expenses/`, expense);
   }
 
+  updateExpense(id: number, expense: any): Observable<any> {
+    return this.http.put(`${this.apiUrl}/expenses/${id}`, expense);
+  }
+
+  deleteExpense(id: number): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/expenses/${id}`);
+  }
+
   analyzeExpenseReceipt(formData: FormData): Observable<any> {
     return this.http.post(`${this.apiUrl}/expenses/analyze-receipt`, formData);
   }
@@ -102,6 +112,14 @@ export class ApiService {
     return this.http.post(`${this.apiUrl}/cards_loans/cards`, card);
   }
 
+  updateCard(id: number, card: any): Observable<any> {
+    return this.http.put(`${this.apiUrl}/cards_loans/cards/${id}`, card);
+  }
+
+  deleteCard(id: number): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/cards_loans/cards/${id}`);
+  }
+
   createLoan(loan: any): Observable<any> {
     return this.http.post(`${this.apiUrl}/cards_loans/loans`, loan);
   }
@@ -121,6 +139,23 @@ export class ApiService {
 
   createIncome(income: any): Observable<any> {
     return this.http.post(`${this.apiUrl}/assets_income/income`, income);
+  }
+
+  // --- Inversiones ---
+  getInvestments(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/investments/`);
+  }
+
+  createInvestment(investment: any): Observable<any> {
+    return this.http.post(`${this.apiUrl}/investments/`, investment);
+  }
+
+  updateInvestment(id: number, investment: any): Observable<any> {
+    return this.http.put(`${this.apiUrl}/investments/${id}`, investment);
+  }
+
+  deleteInvestment(id: number): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/investments/${id}`);
   }
 
   // --- Deudores ---

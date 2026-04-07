@@ -27,19 +27,67 @@ class ApiClient {
   }
 
   Future<dynamic> get(String path, {bool auth = true}) async {
+    final baseUrl = await ApiConfig.getBaseUrl();
     final response = await http.get(
-      Uri.parse('${ApiConfig.baseUrl}$path'),
+      Uri.parse('$baseUrl$path'),
       headers: await _headers(auth: auth),
     );
     return _decode(response);
   }
 
   Future<dynamic> post(String path, Map<String, dynamic> body, {bool auth = true}) async {
+    final baseUrl = await ApiConfig.getBaseUrl();
     final response = await http.post(
-      Uri.parse('${ApiConfig.baseUrl}$path'),
+      Uri.parse('$baseUrl$path'),
       headers: await _headers(auth: auth),
       body: jsonEncode(body),
     );
+    return _decode(response);
+  }
+
+  Future<dynamic> put(String path, Map<String, dynamic> body, {bool auth = true}) async {
+    final baseUrl = await ApiConfig.getBaseUrl();
+    final response = await http.put(
+      Uri.parse('$baseUrl$path'),
+      headers: await _headers(auth: auth),
+      body: jsonEncode(body),
+    );
+    return _decode(response);
+  }
+
+  Future<dynamic> delete(String path, {bool auth = true}) async {
+    final baseUrl = await ApiConfig.getBaseUrl();
+    final response = await http.delete(
+      Uri.parse('$baseUrl$path'),
+      headers: await _headers(auth: auth),
+    );
+    return _decode(response);
+  }
+
+  Future<dynamic> postMultipart(
+    String path, {
+    required Map<String, dynamic> fields,
+    String? fileField,
+    String? filePath,
+    bool auth = true,
+  }) async {
+    final baseUrl = await ApiConfig.getBaseUrl();
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl$path'),
+    );
+
+    final headers = await _headers(auth: auth);
+    headers.remove('Content-Type');
+    request.headers.addAll(headers);
+    request.fields['payload'] = jsonEncode(fields);
+
+    if (fileField != null && filePath != null && filePath.isNotEmpty) {
+      request.files.add(await http.MultipartFile.fromPath(fileField, filePath));
+    }
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
     return _decode(response);
   }
 

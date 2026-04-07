@@ -8,6 +8,9 @@ class MobileExpenseRecord {
     required this.paymentMethod,
     required this.expenseDate,
     required this.syncStatus,
+    this.items = const [],
+    this.cardId,
+    this.bankAccountId,
     this.serverId,
   });
 
@@ -20,6 +23,9 @@ class MobileExpenseRecord {
   final String paymentMethod;
   final String expenseDate;
   final String syncStatus;
+  final List<Map<String, dynamic>> items;
+  final int? cardId;
+  final int? bankAccountId;
 
   MobileExpenseRecord copyWith({
     int? serverId,
@@ -35,6 +41,9 @@ class MobileExpenseRecord {
       paymentMethod: paymentMethod,
       expenseDate: expenseDate,
       syncStatus: syncStatus ?? this.syncStatus,
+      items: items,
+      cardId: cardId,
+      bankAccountId: bankAccountId,
     );
   }
 
@@ -49,6 +58,9 @@ class MobileExpenseRecord {
       'payment_method': paymentMethod,
       'expense_date': expenseDate,
       'sync_status': syncStatus,
+      'items': items,
+      'card_id': cardId,
+      'bank_account_id': bankAccountId,
     };
   }
 
@@ -63,6 +75,11 @@ class MobileExpenseRecord {
       paymentMethod: map['payment_method'] as String? ?? 'Efectivo',
       expenseDate: map['expense_date'] as String? ?? '',
       syncStatus: map['sync_status'] as String? ?? 'pending',
+      items: ((map['items'] as List?) ?? const [])
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList(),
+      cardId: map['card_id'] as int?,
+      bankAccountId: map['bank_account_id'] as int?,
     );
   }
 }

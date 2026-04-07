@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../home/presentation/home_shell.dart';
+import '../../settings/presentation/backend_settings_screen.dart';
 import '../data/auth_service.dart';
 import '../domain/user_session.dart';
 import 'register_screen.dart';
@@ -109,6 +110,23 @@ class _LoginScreenState extends State<LoginScreen> {
                           Text(_error!, style: const TextStyle(color: Colors.red)),
                         ],
                         const SizedBox(height: 20),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            onPressed: _loading
+                                ? null
+                                : () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => const BackendSettingsScreen(),
+                                      ),
+                                    );
+                                  },
+                            icon: const Icon(Icons.settings_ethernet_rounded),
+                            label: const Text('Configurar backend'),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
                         SizedBox(
                           width: double.infinity,
                           child: FilledButton(

@@ -20,7 +20,9 @@ export class DashboardComponent implements OnInit {
     availableBalance: 0,
     totalDebt: 0,
     monthlyExpenses: 0,
-    totalAssets: 0
+    totalAssets: 0,
+    investmentsCurrentValue: 0,
+    investmentsInvestedAmount: 0
   };
 
   recentExpenses: any[] = [];

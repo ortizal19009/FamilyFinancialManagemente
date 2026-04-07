@@ -82,6 +82,24 @@ CREATE TABLE IF NOT EXISTS assets (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 6.1 Tabla de Inversiones
+CREATE TABLE IF NOT EXISTS investments (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    institution VARCHAR(120) NOT NULL,
+    investment_type VARCHAR(50) NOT NULL, -- 'Cooperativa', 'Seguro', 'Negocio', etc.
+    title VARCHAR(150) NOT NULL,
+    owner VARCHAR(100),
+    invested_amount DECIMAL(15, 2) NOT NULL,
+    current_value DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
+    expected_return_rate DECIMAL(5, 2),
+    start_date DATE,
+    end_date DATE,
+    status VARCHAR(30) DEFAULT 'activa',
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 7. Tabla de Categorías de Gastos
 CREATE TABLE IF NOT EXISTS categories (
     id SERIAL PRIMARY KEY,

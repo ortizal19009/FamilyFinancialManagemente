@@ -9,6 +9,25 @@ except ModuleNotFoundError:
 
 banks_bp = Blueprint('banks', __name__)
 
+
+def _normalize_account_number(value):
+    return (value or '').strip()
+
+
+def _find_duplicate_account(bank_id, account_number, exclude_id=None):
+    normalized_number = _normalize_account_number(account_number)
+    if not normalized_number:
+        return None
+
+    query = BankAccount.query.filter_by(
+        bank_id=bank_id,
+        account_number=normalized_number
+    )
+    if exclude_id is not None:
+        query = query.filter(BankAccount.id != exclude_id)
+
+    return query.first()
+
 # --- Rutas para Bancos ---
 
 @banks_bp.route('/', methods=['GET'])
@@ -105,10 +124,22 @@ def create_account():
     data = request.get_json()
     if not data or not data.get('bank_id') or not data.get('account_number'):
         return jsonify({"msg": "bank_id and account_number are required"}), 400
-    
+
+    existing_account = _find_duplicate_account(data['bank_id'], data['account_number'])
+    if existing_account:
+        existing_account.account_type = data.get('account_type') or existing_account.account_type
+        existing_account.owner = data.get('owner') or existing_account.owner
+        existing_account.current_balance = data.get('current_balance', existing_account.current_balance)
+        db.session.commit()
+        return jsonify({
+            "msg": "Account merged successfully",
+            "id": existing_account.id,
+            "merged": True
+        }), 200
+
     new_account = BankAccount(
         bank_id=data['bank_id'],
-        account_number=data['account_number'],
+        account_number=_normalize_account_number(data['account_number']),
         account_type=data.get('account_type'),
         owner=data.get('owner'),
         current_balance=data.get('current_balance', 0.00)
@@ -128,8 +159,30 @@ def update_account(account_id):
     if not data.get('bank_id') or not data.get('account_number'):
         return jsonify({"msg": "bank_id and account_number are required"}), 400
 
+    duplicate = _find_duplicate_account(
+        data['bank_id'],
+        data['account_number'],
+        exclude_id=account.id,
+    )
+
+    if duplicate:
+        duplicate.account_type = data.get('account_type') or duplicate.account_type
+        duplicate.owner = data.get('owner') or duplicate.owner
+        duplicate.current_balance = data.get('current_balance', duplicate.current_balance)
+
+        for expense in account.expenses:
+            expense.bank_account_id = duplicate.id
+
+        db.session.delete(account)
+        db.session.commit()
+        return jsonify({
+            "msg": "Account merged successfully",
+            "id": duplicate.id,
+            "merged": True
+        }), 200
+
     account.bank_id = data['bank_id']
-    account.account_number = data['account_number']
+    account.account_number = _normalize_account_number(data['account_number'])
     account.account_type = data.get('account_type')
     account.owner = data.get('owner')
     account.current_balance = data.get('current_balance', 0.00)

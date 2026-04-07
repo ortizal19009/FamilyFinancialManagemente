@@ -10,6 +10,7 @@ import { AssetsIncomeComponent } from './components/assets-income/assets-income'
 import { DebtorsComponent } from './components/debtors/debtors';
 import { AdminUsersComponent } from './components/admin-users/admin-users';
 import { FamilyMembersComponent } from './components/family-members/family-members';
+import { InvestmentsComponent } from './components/investments/investments';
 import { authGuard } from './guards/auth.guard';
 import { guestGuard } from './guards/guest.guard';
 
@@ -25,6 +26,7 @@ export const routes: Routes = [
   { path: 'assets', component: AssetsIncomeComponent, canActivate: [authGuard] },
   { path: 'income', component: AssetsIncomeComponent, canActivate: [authGuard] },
   { path: 'debtors', component: DebtorsComponent, canActivate: [authGuard] },
+  { path: 'investments', component: InvestmentsComponent, canActivate: [authGuard] },
   { path: 'family', component: FamilyMembersComponent, canActivate: [authGuard] },
   { path: 'admin/users', component: AdminUsersComponent, canActivate: [authGuard] },
   { path: '', redirectTo: '/login', pathMatch: 'full' }

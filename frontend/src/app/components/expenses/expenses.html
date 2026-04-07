@@ -78,7 +78,7 @@
 
             <div class="mb-3">
               <label class="form-label small fw-bold text-muted">Método de Pago</label>
-              <select name="payment_method" class="form-select form-select-sm bg-light" [(ngModel)]="newExpense.payment_method" required>
+              <select name="payment_method" class="form-select form-select-sm bg-light" [(ngModel)]="newExpense.payment_method" (ngModelChange)="onPaymentMethodChange()" required>
                 <option value="Efectivo">Efectivo</option>
                 <option value="Tarjeta Crédito">Tarjeta de Crédito</option>
                 <option value="Tarjeta Débito">Tarjeta de Débito</option>
@@ -87,21 +87,32 @@
               </select>
             </div>
 
-            <!-- Optional: Card Selection if Credit/Debit Card -->
-            <div class="mb-3" *ngIf="newExpense.payment_method === 'Tarjeta Crédito'">
+            <div class="mb-3" *ngIf="usesCardPayment()">
               <label class="form-label small fw-bold text-muted">Seleccionar Tarjeta</label>
               <select name="card_id" class="form-select form-select-sm bg-light" [(ngModel)]="newExpense.card_id">
                 <option [ngValue]="null">Seleccionar tarjeta</option>
                 <option *ngFor="let card of cards" [value]="card.id">{{ card.card_name }} ({{ card.last_four_digits }})</option>
               </select>
+              <div *ngIf="getSelectedCard()" class="small text-muted mt-2">
+                <span *ngIf="newExpense.payment_method === 'Tarjeta Crédito'">
+                  Disponible actual: {{ (getSelectedCard().credit_limit - getSelectedCard().current_debt) | currency }} ·
+                  Devengado actual: {{ getSelectedCard().current_debt | currency }}
+                </span>
+                <span *ngIf="newExpense.payment_method === 'Tarjeta Débito'">
+                  Saldo actual: {{ getSelectedCard().available_balance | currency }}
+                </span>
+              </div>
             </div>
 
-            <div class="mb-3" *ngIf="newExpense.payment_method === 'Tarjeta Débito' || newExpense.payment_method === 'Banca Móvil'">
+            <div class="mb-3" *ngIf="usesAccountPayment()">
               <label class="form-label small fw-bold text-muted">Seleccionar Cuenta</label>
               <select name="bank_account_id" class="form-select form-select-sm bg-light" [(ngModel)]="newExpense.bank_account_id">
                 <option [ngValue]="null">Seleccionar cuenta</option>
                 <option *ngFor="let acc of accounts" [value]="acc.id">{{ acc.bank_name }} - {{ acc.account_number }}</option>
               </select>
+              <div *ngIf="getSelectedAccount()" class="small text-muted mt-2">
+                Saldo actual: {{ getSelectedAccount().current_balance | currency }}
+              </div>
             </div>
 
             <div class="mb-3">
@@ -146,8 +157,17 @@
               <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ errorMsg }}
             </div>
 
+            <div *ngIf="editingExpenseId !== null" class="d-flex gap-2 mb-3">
+              <button type="button" class="btn btn-sm btn-outline-secondary w-50" (click)="cancelEditExpense()">
+                Cancelar edición
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-danger w-50" (click)="clearReceipt()">
+                Limpiar adjunto
+              </button>
+            </div>
+
             <button type="submit" class="btn btn-sm btn-primary w-100 py-2 shadow-sm" [disabled]="!expenseForm.valid || loading || getExpenseTotal() <= 0">
-              <span *ngIf="!loading"><i class="bi bi-save me-2"></i> Registrar Gasto</span>
+              <span *ngIf="!loading"><i class="bi bi-save me-2"></i> {{ editingExpenseId !== null ? 'Guardar Cambios' : 'Registrar Gasto' }}</span>
               <span *ngIf="loading" class="spinner-border spinner-border-sm me-2"></span>
             </button>
           </form>
@@ -174,7 +194,9 @@
                   <th class="py-3 border-0">Descripción / Integrante</th>
                   <th class="py-3 border-0">Categoría</th>
                   <th class="py-3 border-0 text-center">Método</th>
+                  <th class="py-3 border-0 text-center">Origen</th>
                   <th class="py-3 border-0 text-center">Comprobante</th>
+                  <th class="py-3 border-0 text-center">Acciones</th>
                   <th class="text-end px-4 py-3 border-0">Monto</th>
                 </tr>
               </thead>
@@ -207,6 +229,9 @@
                       {{ exp.payment_method }}
                     </span>
                   </td>
+                  <td class="text-center small text-muted">
+                    {{ exp.card_name || exp.bank_account_name || 'N/A' }}
+                  </td>
                   <td class="text-center">
                     <button *ngIf="exp.receipt; else noReceiptTpl" type="button" class="btn btn-outline-secondary btn-sm" (click)="openReceipt(exp)">
                       <i class="bi bi-paperclip me-1"></i> Ver
@@ -215,12 +240,22 @@
                       <span class="small text-muted">Sin adjunto</span>
                     </ng-template>
                   </td>
+                  <td class="text-center">
+                    <div class="d-flex justify-content-center gap-2">
+                      <button type="button" class="btn btn-outline-primary btn-sm" (click)="startEditExpense(exp)">
+                        <i class="bi bi-pencil"></i>
+                      </button>
+                      <button type="button" class="btn btn-outline-danger btn-sm" (click)="deleteExpense(exp)">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  </td>
                   <td class="text-end px-4 fw-bold text-danger">
                     -{{ (exp.total_amount ?? exp.amount) | currency }}
                   </td>
                 </tr>
                 <tr *ngIf="expenses.length === 0">
-                  <td colspan="6" class="text-center py-5 text-muted">
+                  <td colspan="8" class="text-center py-5 text-muted">
                     <i class="bi bi-inbox display-4 d-block mb-3 opacity-25"></i>
                     No se encontraron gastos registrados
                   </td>

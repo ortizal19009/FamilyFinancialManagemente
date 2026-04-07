@@ -47,6 +47,7 @@ def create_app(config_class=Config):
         from backend.routes.debtors import debtors_bp
         from backend.routes.family import family_bp
         from backend.routes.dashboard import dashboard_bp
+        from backend.routes.investments import investments_bp
     except ModuleNotFoundError:
         from routes.auth import auth_bp
         from routes.banks import banks_bp
@@ -57,6 +58,7 @@ def create_app(config_class=Config):
         from routes.debtors import debtors_bp
         from routes.family import family_bp
         from routes.dashboard import dashboard_bp
+        from routes.investments import investments_bp
     
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(banks_bp, url_prefix='/api/banks')
@@ -67,6 +69,7 @@ def create_app(config_class=Config):
     app.register_blueprint(debtors_bp, url_prefix='/api/debtors')
     app.register_blueprint(family_bp, url_prefix='/api/family')
     app.register_blueprint(dashboard_bp, url_prefix='/api/dashboard')
+    app.register_blueprint(investments_bp, url_prefix='/api/investments')
 
     @app.route('/health', methods=['GET'])
     def health_check():

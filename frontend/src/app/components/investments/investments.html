@@ -1,0 +1,189 @@
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold mb-0 text-dark">Inversiones</h4>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item small"><a routerLink="/dashboard" class="text-decoration-none text-muted">Dashboard</a></li>
+        <li class="breadcrumb-item small active" aria-current="page">Inversiones</li>
+      </ol>
+    </nav>
+  </div>
+
+  <div class="row g-4 mb-4">
+    <div class="col-md-4">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <div class="small text-muted text-uppercase fw-bold">Capital invertido</div>
+          <div class="h4 fw-bold mb-0">{{ getTotalInvested() | currency }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <div class="small text-muted text-uppercase fw-bold">Valor actual</div>
+          <div class="h4 fw-bold mb-0">{{ getTotalCurrentValue() | currency }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <div class="small text-muted text-uppercase fw-bold">Rendimiento</div>
+          <div class="h4 fw-bold mb-0" [ngClass]="getTotalProfitLoss() >= 0 ? 'text-success' : 'text-danger'">
+            {{ getTotalProfitLoss() | currency }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-lg-4">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-3 border-0">
+          <h6 class="mb-0 fw-bold text-secondary">
+            {{ editingInvestmentId === null ? 'Registrar inversión' : 'Editar inversión' }}
+          </h6>
+        </div>
+        <div class="card-body p-4">
+          <form (ngSubmit)="onSubmit()" #investmentForm="ngForm">
+            <div class="mb-3">
+              <label class="form-label small fw-bold text-muted">Institución</label>
+              <input type="text" name="institution" class="form-control form-control-sm bg-light" [(ngModel)]="formInvestment.institution" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-bold text-muted">Tipo</label>
+              <select name="investment_type" class="form-select form-select-sm bg-light" [(ngModel)]="formInvestment.investment_type" required>
+                <option value="Cooperativa">Cooperativa</option>
+                <option value="Seguro">Seguro</option>
+                <option value="Negocio">Negocio</option>
+                <option value="Certificado">Certificado</option>
+                <option value="Otro">Otro</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-bold text-muted">Nombre inversión</label>
+              <input type="text" name="title" class="form-control form-control-sm bg-light" [(ngModel)]="formInvestment.title" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-bold text-muted">Propietario</label>
+              <input type="text" name="owner" class="form-control form-control-sm bg-light" [(ngModel)]="formInvestment.owner">
+            </div>
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label class="form-label small fw-bold text-muted">Monto invertido</label>
+                <input type="number" name="invested_amount" class="form-control form-control-sm bg-light" [(ngModel)]="formInvestment.invested_amount" min="0" step="0.01" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small fw-bold text-muted">Valor actual</label>
+                <input type="number" name="current_value" class="form-control form-control-sm bg-light" [(ngModel)]="formInvestment.current_value" min="0" step="0.01" required>
+              </div>
+            </div>
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label class="form-label small fw-bold text-muted">Rentabilidad esperada %</label>
+                <input type="number" name="expected_return_rate" class="form-control form-control-sm bg-light" [(ngModel)]="formInvestment.expected_return_rate" step="0.01">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small fw-bold text-muted">Estado</label>
+                <select name="status" class="form-select form-select-sm bg-light" [(ngModel)]="formInvestment.status">
+                  <option value="activa">Activa</option>
+                  <option value="cerrada">Cerrada</option>
+                  <option value="pausada">Pausada</option>
+                </select>
+              </div>
+            </div>
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label class="form-label small fw-bold text-muted">Fecha inicio</label>
+                <input type="date" name="start_date" class="form-control form-control-sm bg-light" [(ngModel)]="formInvestment.start_date">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small fw-bold text-muted">Fecha fin</label>
+                <input type="date" name="end_date" class="form-control form-control-sm bg-light" [(ngModel)]="formInvestment.end_date">
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-bold text-muted">Notas</label>
+              <textarea name="notes" class="form-control form-control-sm bg-light" rows="3" [(ngModel)]="formInvestment.notes"></textarea>
+            </div>
+
+            <div *ngIf="successMsg" class="alert alert-success py-2 small mb-3">{{ successMsg }}</div>
+            <div *ngIf="errorMsg" class="alert alert-danger py-2 small mb-3">{{ errorMsg }}</div>
+
+            <div class="d-flex gap-2" *ngIf="editingInvestmentId !== null">
+              <button type="button" class="btn btn-sm btn-outline-secondary w-50" (click)="onCancelEdit()">Cancelar</button>
+              <button type="submit" class="btn btn-sm btn-primary w-50" [disabled]="!investmentForm.valid || loading">
+                {{ loading ? 'Guardando...' : 'Actualizar' }}
+              </button>
+            </div>
+            <button *ngIf="editingInvestmentId === null" type="submit" class="btn btn-sm btn-primary w-100 py-2 shadow-sm" [disabled]="!investmentForm.valid || loading">
+              {{ loading ? 'Guardando...' : 'Registrar inversión' }}
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-8">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-3 border-0">
+          <h6 class="mb-0 fw-bold text-secondary">Portafolio</h6>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" style="font-size: 0.85rem;">
+              <thead class="bg-light text-muted small text-uppercase fw-bold">
+                <tr>
+                  <th class="px-4 py-3 border-0">Inversión</th>
+                  <th class="py-3 border-0">Institución</th>
+                  <th class="py-3 border-0">Estado</th>
+                  <th class="py-3 border-0 text-end">Invertido</th>
+                  <th class="py-3 border-0 text-end">Actual</th>
+                  <th class="py-3 border-0 text-end">Rendimiento</th>
+                  <th class="py-3 border-0 text-center">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let investment of investments">
+                  <td class="px-4">
+                    <div class="fw-bold text-dark">{{ investment.title }}</div>
+                    <div class="small text-muted">{{ investment.investment_type }} · {{ investment.owner || 'Sin propietario' }}</div>
+                  </td>
+                  <td>{{ investment.institution }}</td>
+                  <td>
+                    <span class="badge rounded-pill"
+                      [ngClass]="investment.status === 'activa' ? 'bg-success-subtle text-success' : (investment.status === 'cerrada' ? 'bg-secondary-subtle text-secondary' : 'bg-warning-subtle text-warning')">
+                      {{ investment.status }}
+                    </span>
+                  </td>
+                  <td class="text-end">{{ investment.invested_amount | currency }}</td>
+                  <td class="text-end">{{ investment.current_value | currency }}</td>
+                  <td class="text-end fw-bold" [ngClass]="investment.profit_loss >= 0 ? 'text-success' : 'text-danger'">
+                    {{ investment.profit_loss | currency }}
+                  </td>
+                  <td class="text-center">
+                    <div class="d-flex justify-content-center gap-2">
+                      <button type="button" class="btn btn-outline-primary btn-sm" (click)="onEdit(investment)">
+                        <i class="bi bi-pencil"></i>
+                      </button>
+                      <button type="button" class="btn btn-outline-danger btn-sm" (click)="onDelete(investment)">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                <tr *ngIf="investments.length === 0">
+                  <td colspan="7" class="text-center py-5 text-muted">
+                    No hay inversiones registradas todavía
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

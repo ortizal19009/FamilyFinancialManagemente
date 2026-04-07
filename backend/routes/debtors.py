@@ -57,8 +57,26 @@ def update_debtor_status(id):
     
     if 'status' in data:
         debtor.status = data['status']
+    if 'name' in data and data['name']:
+        debtor.name = data['name']
     if 'amount_owed' in data:
         debtor.amount_owed = data['amount_owed']
+    if 'description' in data:
+        debtor.description = data['description']
+    if 'due_date' in data:
+        debtor.due_date = datetime.strptime(data['due_date'], '%Y-%m-%d') if data.get('due_date') else None
         
     db.session.commit()
     return jsonify({"msg": "Debtor updated successfully"}), 200
+
+
+@debtors_bp.route('/<int:id>', methods=['DELETE'])
+@jwt_required()
+def delete_debtor(id):
+    debtor = db.session.get(Debtor, id)
+    if not debtor:
+        return jsonify({"msg": "Debtor not found"}), 404
+
+    db.session.delete(debtor)
+    db.session.commit()
+    return jsonify({"msg": "Debtor deleted successfully"}), 200

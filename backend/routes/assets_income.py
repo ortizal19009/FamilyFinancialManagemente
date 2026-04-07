@@ -52,6 +52,38 @@ def create_asset():
     db.session.commit()
     return jsonify({"msg": "Asset registered successfully", "id": new_asset.id}), 201
 
+
+@assets_income_bp.route('/assets/<int:asset_id>', methods=['PUT'])
+@jwt_required()
+def update_asset(asset_id):
+    asset = db.session.get(Asset, asset_id)
+    if not asset:
+        return jsonify({"msg": "Asset not found"}), 404
+
+    data = request.get_json() or {}
+    if not data.get('name') or data.get('value') in [None, '']:
+        return jsonify({"msg": "Name and value are required"}), 400
+
+    asset.name = data['name']
+    asset.value = data['value']
+    asset.owner = data.get('owner')
+    asset.description = data.get('description')
+    asset.purchase_date = datetime.strptime(data['purchase_date'], '%Y-%m-%d') if data.get('purchase_date') else None
+    db.session.commit()
+    return jsonify({"msg": "Asset updated successfully"}), 200
+
+
+@assets_income_bp.route('/assets/<int:asset_id>', methods=['DELETE'])
+@jwt_required()
+def delete_asset(asset_id):
+    asset = db.session.get(Asset, asset_id)
+    if not asset:
+        return jsonify({"msg": "Asset not found"}), 404
+
+    db.session.delete(asset)
+    db.session.commit()
+    return jsonify({"msg": "Asset deleted successfully"}), 200
+
 # --- Rutas para Ingresos ---
 
 @assets_income_bp.route('/income', methods=['GET'])
@@ -93,3 +125,46 @@ def create_income():
     db.session.add(new_income)
     db.session.commit()
     return jsonify({"msg": "Income registered successfully", "id": new_income.id}), 201
+
+
+@assets_income_bp.route('/income/<int:income_id>', methods=['PUT'])
+@jwt_required()
+def update_income(income_id):
+    user_id = int(get_jwt_identity())
+    user = db.session.get(User, user_id)
+    income = db.session.get(Income, income_id)
+
+    if not income:
+        return jsonify({"msg": "Income not found"}), 404
+
+    if user.role != 'admin' and income.user_id != user_id:
+        return jsonify({"msg": "No autorizado para editar este ingreso"}), 403
+
+    data = request.get_json() or {}
+    if data.get('amount') in [None, ''] or not data.get('source') or not data.get('income_date'):
+        return jsonify({"msg": "Amount, source and income_date are required"}), 400
+
+    income.amount = data['amount']
+    income.source = data['source']
+    income.income_date = datetime.strptime(data['income_date'], '%Y-%m-%d')
+    income.description = data.get('description')
+    db.session.commit()
+    return jsonify({"msg": "Income updated successfully"}), 200
+
+
+@assets_income_bp.route('/income/<int:income_id>', methods=['DELETE'])
+@jwt_required()
+def delete_income(income_id):
+    user_id = int(get_jwt_identity())
+    user = db.session.get(User, user_id)
+    income = db.session.get(Income, income_id)
+
+    if not income:
+        return jsonify({"msg": "Income not found"}), 404
+
+    if user.role != 'admin' and income.user_id != user_id:
+        return jsonify({"msg": "No autorizado para eliminar este ingreso"}), 403
+
+    db.session.delete(income)
+    db.session.commit()
+    return jsonify({"msg": "Income deleted successfully"}), 200

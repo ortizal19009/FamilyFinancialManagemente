@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 import json
 import os
 import re
@@ -233,10 +234,61 @@ def _build_expense_response(expense):
         "category_name": expense.category.name if expense.category else None,
         "amount": float(expense.amount),
         "payment_method": expense.payment_method,
+        "card_id": expense.card_id,
+        "bank_account_id": expense.bank_account_id,
         "expense_date": expense.expense_date.strftime('%Y-%m-%d'),
         "description": expense.description,
         "created_at": expense.created_at.isoformat() if expense.created_at else None
     }
+
+
+def _build_group_key(expense):
+    created_at = expense.created_at.isoformat() if expense.created_at else ''
+    return '|'.join([
+        str(expense.user_id),
+        expense.expense_date.strftime('%Y-%m-%d'),
+        expense.payment_method or '',
+        expense.description or '',
+        created_at[:19]
+    ])
+
+
+def _apply_payment_effect(payment_method, total_amount, card_id=None, bank_account_id=None, sign=1):
+    amount_delta = Decimal(str(total_amount))
+
+    if payment_method == 'Tarjeta Crédito' and card_id:
+        card = db.session.get(Card, card_id)
+        if card:
+            card.current_debt += sign * amount_delta
+            card.available_balance = max(
+                Decimal('0.00'),
+                Decimal(str(card.credit_limit or 0)) - Decimal(str(card.current_debt or 0)),
+            )
+        return
+
+    if payment_method == 'Tarjeta Débito' and card_id:
+        card = db.session.get(Card, card_id)
+        if card:
+            card.available_balance -= sign * amount_delta
+        return
+
+    if payment_method == 'Banca Móvil' and bank_account_id:
+        account = db.session.get(BankAccount, bank_account_id)
+        if account:
+            account.current_balance -= sign * amount_delta
+
+
+def _load_group_expenses(base_expense):
+    if not base_expense:
+        return []
+
+    group_key = _build_group_key(base_expense)
+    candidate_expenses = Expense.query.options(
+        joinedload(Expense.user),
+        joinedload(Expense.category)
+    ).filter_by(user_id=base_expense.user_id).all()
+
+    return [expense for expense in candidate_expenses if _build_group_key(expense) == group_key]
 
 
 def _group_expenses(expenses):
@@ -245,13 +297,7 @@ def _group_expenses(expenses):
 
     for expense in expenses:
         created_at = expense.created_at.isoformat() if expense.created_at else ''
-        group_key = '|'.join([
-            str(expense.user_id),
-            expense.expense_date.strftime('%Y-%m-%d'),
-            expense.payment_method or '',
-            expense.description or '',
-            created_at[:19]
-        ])
+        group_key = _build_group_key(expense)
 
         if group_key not in grouped:
             grouped[group_key] = {
@@ -260,12 +306,17 @@ def _group_expenses(expenses):
                 "user_name": expense.user.full_name if expense.user else 'N/A',
                 "description": expense.description,
                 "payment_method": expense.payment_method,
+                "card_id": expense.card_id,
+                "bank_account_id": expense.bank_account_id,
                 "expense_date": expense.expense_date.strftime('%Y-%m-%d'),
                 "total_amount": 0.0,
                 "category_name": None,
                 "categories_summary": [],
                 "items": [],
                 "created_at": created_at,
+                "card_name": expense.card.card_name if expense.card else None,
+                "bank_account_name": f"{expense.bank_account.bank.name} - {expense.bank_account.account_number}"
+                if expense.bank_account and expense.bank_account.bank else None,
                 "receipt": None
             }
 
@@ -419,15 +470,13 @@ def create_expense():
         db.session.add(new_expense)
         created_expenses.append(new_expense)
 
-    if data['payment_method'] in ['Tarjeta Débito', 'Banca Móvil'] and data.get('bank_account_id'):
-        account = db.session.get(BankAccount, data['bank_account_id'])
-        if account:
-            account.current_balance -= total_amount
-
-    elif data['payment_method'] == 'Tarjeta Crédito' and data.get('card_id'):
-        card = db.session.get(Card, data['card_id'])
-        if card:
-            card.current_debt += total_amount
+    _apply_payment_effect(
+        data['payment_method'],
+        total_amount,
+        card_id=data.get('card_id'),
+        bank_account_id=data.get('bank_account_id'),
+        sign=1,
+    )
 
     db.session.commit()
 
@@ -439,6 +488,126 @@ def create_expense():
             return jsonify({"msg": str(error)}), 400
 
     return jsonify({"msg": "Expense registered successfully"}), 201
+
+
+@expenses_bp.route('/<int:expense_id>', methods=['PUT'])
+@jwt_required()
+def update_expense(expense_id):
+    user_id = int(get_jwt_identity())
+    user = db.session.get(User, user_id)
+    base_expense = db.session.get(Expense, expense_id)
+
+    if not base_expense:
+        return jsonify({"msg": "Expense not found"}), 404
+
+    if user.role != 'admin' and base_expense.user_id != user_id:
+        return jsonify({"msg": "No autorizado para editar este gasto"}), 403
+
+    data = request.get_json() or {}
+    items = data.get('items') or []
+
+    if not data.get('payment_method') or not data.get('expense_date'):
+        return jsonify({"msg": "Missing required fields"}), 400
+
+    if not items:
+        return jsonify({"msg": "Debes agregar al menos una categoría"}), 400
+
+    grouped_expenses = _load_group_expenses(base_expense)
+    original_total = sum(float(expense.amount) for expense in grouped_expenses)
+    _apply_payment_effect(
+        base_expense.payment_method,
+        original_total,
+        card_id=base_expense.card_id,
+        bank_account_id=base_expense.bank_account_id,
+        sign=-1,
+    )
+
+    for expense in grouped_expenses:
+        db.session.delete(expense)
+
+    expense_date = datetime.strptime(data['expense_date'], '%Y-%m-%d')
+    total_amount = 0.0
+    created_expenses = []
+
+    for item in items:
+        category_id = item.get('category_id')
+        amount = item.get('amount')
+
+        if not category_id or amount in [None, '']:
+            return jsonify({"msg": "Cada detalle del gasto necesita categoría y monto"}), 400
+
+        amount_value = float(amount)
+        if amount_value <= 0:
+            return jsonify({"msg": "Los montos deben ser mayores a 0"}), 400
+
+        total_amount += amount_value
+        updated_expense = Expense(
+            user_id=base_expense.user_id,
+            category_id=category_id,
+            amount=amount_value,
+            payment_method=data['payment_method'],
+            card_id=data.get('card_id'),
+            bank_account_id=data.get('bank_account_id'),
+            expense_date=expense_date,
+            description=data.get('description'),
+        )
+        db.session.add(updated_expense)
+        created_expenses.append(updated_expense)
+
+    _apply_payment_effect(
+        data['payment_method'],
+        total_amount,
+        card_id=data.get('card_id'),
+        bank_account_id=data.get('bank_account_id'),
+        sign=1,
+    )
+
+    receipt = _get_receipt_for_expense(expense_id)
+    db.session.commit()
+
+    if receipt:
+        manifest = _load_receipt_manifest()
+        for old_expense in grouped_expenses:
+            manifest.pop(str(old_expense.id), None)
+        for new_expense in created_expenses:
+            manifest[str(new_expense.id)] = receipt
+        _save_receipt_manifest(manifest)
+
+    return jsonify({"msg": "Expense updated successfully"}), 200
+
+
+@expenses_bp.route('/<int:expense_id>', methods=['DELETE'])
+@jwt_required()
+def delete_expense(expense_id):
+    user_id = int(get_jwt_identity())
+    user = db.session.get(User, user_id)
+    base_expense = db.session.get(Expense, expense_id)
+
+    if not base_expense:
+        return jsonify({"msg": "Expense not found"}), 404
+
+    if user.role != 'admin' and base_expense.user_id != user_id:
+        return jsonify({"msg": "No autorizado para eliminar este gasto"}), 403
+
+    grouped_expenses = _load_group_expenses(base_expense)
+    total_amount = sum(float(expense.amount) for expense in grouped_expenses)
+    _apply_payment_effect(
+        base_expense.payment_method,
+        total_amount,
+        card_id=base_expense.card_id,
+        bank_account_id=base_expense.bank_account_id,
+        sign=-1,
+    )
+
+    manifest = _load_receipt_manifest()
+    for expense in grouped_expenses:
+        manifest.pop(str(expense.id), None)
+        db.session.delete(expense)
+
+    db.session.commit()
+    _save_receipt_manifest(manifest)
+
+    return jsonify({"msg": "Expense deleted successfully"}), 200
 
 
 @expenses_bp.route('/<int:expense_id>/receipt', methods=['GET'])

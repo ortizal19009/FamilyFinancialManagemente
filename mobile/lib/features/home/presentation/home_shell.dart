@@ -13,6 +13,7 @@ import '../../debtors/presentation/debtors_screen.dart';
 import '../../expenses/presentation/expenses_screen.dart';
 import '../../family/presentation/family_screen.dart';
 import '../../planning/presentation/planning_screen.dart';
+import '../../settings/presentation/backend_settings_screen.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key, required this.session});
@@ -133,6 +134,18 @@ class _HomeShellState extends State<HomeShell> {
                   );
                 },
               ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.settings_rounded),
+              title: const Text('Configuracion backend'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const BackendSettingsScreen(),
+                  ),
+                );
+              },
             ),
             ListTile(
               leading: const Icon(Icons.logout_rounded),

@@ -26,6 +26,7 @@ def get_cards():
         
     return jsonify([{
         "id": c.id,
+        "bank_id": c.bank_id,
         "bank_name": c.bank.name if c.bank else None,
         "user_name": c.user.full_name if c.user else None,
         "card_name": c.card_name,
@@ -59,6 +60,59 @@ def create_card():
     db.session.add(new_card)
     db.session.commit()
     return jsonify({"msg": "Card created successfully", "id": new_card.id}), 201
+
+
+@cards_loans_bp.route('/cards/<int:card_id>', methods=['PUT'])
+@jwt_required()
+def update_card(card_id):
+    user_id = int(get_jwt_identity())
+    user = db.session.get(User, user_id)
+    card = db.session.get(Card, card_id)
+
+    if not card:
+        return jsonify({"msg": "Card not found"}), 404
+
+    if user.role != 'admin' and card.user_id != user_id:
+        return jsonify({"msg": "No autorizado para editar esta tarjeta"}), 403
+
+    data = request.get_json() or {}
+    if not data.get('bank_id') or not data.get('card_name'):
+        return jsonify({"msg": "bank_id and card_name are required"}), 400
+
+    card.bank_id = data['bank_id']
+    card.card_name = data['card_name']
+    card.owner = data.get('owner')
+    card.last_four_digits = data.get('last_four_digits')
+    card.card_type = data.get('card_type', 'Débito')
+    card.credit_limit = data.get('credit_limit', 0.00)
+    card.current_debt = data.get('current_debt', 0.00)
+    card.available_balance = data.get('available_balance', 0.00)
+    db.session.commit()
+
+    return jsonify({"msg": "Card updated successfully"}), 200
+
+
+@cards_loans_bp.route('/cards/<int:card_id>', methods=['DELETE'])
+@jwt_required()
+def delete_card(card_id):
+    user_id = int(get_jwt_identity())
+    user = db.session.get(User, user_id)
+    card = db.session.get(Card, card_id)
+
+    if not card:
+        return jsonify({"msg": "Card not found"}), 404
+
+    if user.role != 'admin' and card.user_id != user_id:
+        return jsonify({"msg": "No autorizado para eliminar esta tarjeta"}), 403
+
+    if card.expenses:
+        return jsonify({
+            "msg": "No se puede eliminar la tarjeta porque tiene gastos asociados"
+        }), 400
+
+    db.session.delete(card)
+    db.session.commit()
+    return jsonify({"msg": "Card deleted successfully"}), 200
 
 # --- Rutas para Préstamos ---
 
