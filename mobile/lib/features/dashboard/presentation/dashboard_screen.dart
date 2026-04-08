@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 
-import '../../assets/presentation/assets_income_screen.dart';
-import '../../banks/presentation/banks_screen.dart';
-import '../../cards/presentation/cards_loans_screen.dart';
 import '../data/dashboard_repository.dart';
 import '../../expenses/presentation/expenses_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  const DashboardScreen({
+    super.key,
+    required this.onOpenSection,
+  });
+
+  final ValueChanged<String> onOpenSection;
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -43,10 +45,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  Future<void> _openScreen(Widget screen) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => screen),
-    );
+  Future<void> _openSection(String section) async {
+    widget.onOpenSection(section);
     if (!mounted) return;
     await _loadData();
   }
@@ -124,31 +124,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     title: 'Saldo disponible',
                     value: '\$${((stats['availableBalance'] as num?) ?? 0).toStringAsFixed(2)}',
                     icon: Icons.account_balance_wallet_rounded,
-                    onTap: () => _openScreen(const BanksScreen()),
+                    onTap: () => _openSection('banks'),
                   ),
                   _StatCard(
                     title: 'Deuda total',
                     value: '\$${((stats['totalDebt'] as num?) ?? 0).toStringAsFixed(2)}',
                     icon: Icons.credit_card_rounded,
-                    onTap: () => _openScreen(const CardsLoansScreen()),
+                    onTap: () => _openSection('cards'),
                   ),
                   _StatCard(
                     title: 'Gastos del mes',
                     value: '\$${((stats['monthlyExpenses'] as num?) ?? 0).toStringAsFixed(2)}',
                     icon: Icons.receipt_long_rounded,
-                    onTap: () => _openScreen(const ExpensesScreen()),
+                    onTap: () => _openSection('expenses'),
                   ),
                   _StatCard(
                     title: 'Ingresos del mes',
                     value: '\$${((stats['monthlyIncome'] as num?) ?? 0).toStringAsFixed(2)}',
                     icon: Icons.savings_rounded,
-                    onTap: () => _openScreen(const AssetsIncomeScreen()),
+                    onTap: () => _openSection('assets'),
                   ),
                   _StatCard(
                     title: 'Activos',
                     value: '\$${((stats['totalAssets'] as num?) ?? 0).toStringAsFixed(2)}',
                     icon: Icons.home_work_rounded,
-                    onTap: () => _openScreen(const AssetsIncomeScreen()),
+                    onTap: () => _openSection('assets'),
                   ),
                 ],
               );
@@ -167,7 +167,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ...accounts.map(
             (account) => Card(
               child: ListTile(
-                onTap: () => _openScreen(const BanksScreen()),
+                onTap: () => _openSection('banks'),
                 leading: const Icon(Icons.account_balance_rounded),
                 title: Text(account['bank_name']?.toString() ?? 'Banco'),
                 subtitle: Text(
@@ -192,7 +192,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ...recentExpenses.map(
             (expense) => Card(
               child: ListTile(
-                onTap: () => _openScreen(const ExpensesScreen()),
+                onTap: () => _openSection('expenses'),
                 leading: const Icon(Icons.payments_rounded),
                 title: Text(expense['description']?.toString() ?? 'Sin descripcion'),
                 subtitle: Text(

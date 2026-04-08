@@ -34,8 +34,25 @@ class _HomeShellState extends State<HomeShell> {
     AppServices.syncService.initialize();
   }
 
+  void _openSection(String section) {
+    final targetIndex = switch (section) {
+      'dashboard' => 0,
+      'expenses' => 1,
+      'banks' => 2,
+      'cards' => 3,
+      'planning' => 4,
+      'assets' => 5,
+      'debtors' => 6,
+      'family' => 7,
+      'users' => 8,
+      _ => 0,
+    };
+    if (!mounted) return;
+    setState(() => _index = targetIndex.clamp(0, _items.length - 1));
+  }
+
   List<_NavItem> get _items => [
-        const _NavItem('Dashboard', Icons.space_dashboard_rounded, DashboardScreen()),
+        _NavItem('Dashboard', Icons.space_dashboard_rounded, DashboardScreen(onOpenSection: _openSection)),
         const _NavItem('Gastos', Icons.receipt_long_rounded, ExpensesScreen()),
         const _NavItem('Bancos', Icons.account_balance_rounded, BanksScreen()),
         const _NavItem('Tarjetas', Icons.credit_card_rounded, CardsLoansScreen()),

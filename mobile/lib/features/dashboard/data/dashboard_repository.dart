@@ -16,6 +16,7 @@ class DashboardRepository {
   static const _summaryCacheKey = 'mobile_dashboard_summary_cache';
   static const _accountsCacheKey = 'mobile_bank_accounts_cache';
   static const _cardsCacheKey = 'mobile_cards_cache';
+  static const _loansCacheKey = 'mobile_loans_cache';
   static const _assetsCacheKey = 'mobile_assets_cache';
   static const _incomeCacheKey = 'mobile_income_cache';
   static const _expensesCacheKey = 'mobile_expenses_cache';
@@ -44,6 +45,7 @@ class DashboardRepository {
   Future<Map<String, dynamic>> _buildLocalSummary() async {
     final accountsCache = await _cacheStorage.getCollection(_accountsCacheKey);
     final cardsCache = await _cacheStorage.getCollection(_cardsCacheKey);
+    final loansCache = await _cacheStorage.getCollection(_loansCacheKey);
     final assetsCache = await _cacheStorage.getCollection(_assetsCacheKey);
     final incomeCache = await _cacheStorage.getCollection(_incomeCacheKey);
     final expensesCache = await _cacheStorage.getCollection(_expensesCacheKey);
@@ -72,7 +74,15 @@ class DashboardRepository {
       (sum, item) => sum + ((item['value'] as num?)?.toDouble() ?? 0),
     );
 
-    final totalDebt = cards.fold<double>(0, (sum, item) => sum + item.currentDebt);
+    final cardDebt = cards.fold<double>(0, (sum, item) => sum + item.currentDebt);
+    final loanDebt = loansCache.fold<double>(
+      0,
+      (sum, item) =>
+          sum +
+          (((item['pending_installments'] as num?)?.toDouble() ?? 0) *
+              ((item['monthly_payment'] as num?)?.toDouble() ?? 0)),
+    );
+    final totalDebt = cardDebt + loanDebt;
     final availableBalance = accounts.fold<double>(0, (sum, item) => sum + item.currentBalance);
 
     final recentExpenses = [...expenses]
