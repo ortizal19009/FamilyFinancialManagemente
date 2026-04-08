@@ -10,7 +10,7 @@ load_dotenv(os.path.join(os.path.dirname(basedir), '.env'))
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-key-very-secret'
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        'postgresql+psycopg://postgres:12345@localhost/FFM_DB'
+        'postgresql+psycopg2://postgres:12345@localhost/FFM_DB'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or 'jwt-dev-key'
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=1)
