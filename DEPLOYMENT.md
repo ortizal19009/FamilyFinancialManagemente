@@ -68,8 +68,43 @@ docker compose down -v
 4. Ejecuta `docker compose up --build -d`.
 5. Abre el puerto `8080` o coloca un reverse proxy delante.
 
+## Despliegue hibrido: Nginx para frontend y Docker para backend
+
+Si prefieres dejar el frontend servido por el Nginx del servidor y usar Docker solo para el backend:
+
+1. Instala en el servidor: `docker`, `docker compose`, `nginx`, `node`, `npm`, `rsync`.
+2. Sube el repositorio al servidor.
+3. Ejecuta:
+
+```bash
+chmod +x ./deploy-server.sh
+./deploy-server.sh
+```
+
+El script:
+
+- compila Angular
+- publica el frontend en `/var/www/family-finance`
+- instala una configuracion de Nginx
+- recarga Nginx
+- reconstruye y levanta solo el servicio `backend` con Docker
+
+Variables utiles antes de correrlo:
+
+```bash
+export APP_DOMAIN=midominio.com
+export FRONTEND_TARGET_DIR=/var/www/family-finance
+export BACKEND_HOST=127.0.0.1
+export BACKEND_PORT=5000
+./deploy-server.sh
+```
+
+Archivos relacionados:
+
+- [deploy-server.sh](/c:/Users/Alexis%20Ortiz/Documents/trae_projects/FamilyFinancialManagemente/deploy-server.sh)
+- [deploy/nginx.family-finance.conf.template](/c:/Users/Alexis%20Ortiz/Documents/trae_projects/FamilyFinancialManagemente/deploy/nginx.family-finance.conf.template)
+
 ## Notas
 
 - El backend guarda adjuntos en un volumen Docker llamado `backend_uploads`.
 - Si quieres usar dominio con HTTPS, lo ideal es poner Nginx Proxy Manager, Traefik o Nginx externo delante del puerto `8080`.
-
