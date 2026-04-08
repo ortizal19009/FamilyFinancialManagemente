@@ -16,6 +16,8 @@ BACKEND_PORT="${BACKEND_PORT:-5000}"
 DEPLOY_FRONTEND="${DEPLOY_FRONTEND:-1}"
 DEPLOY_BACKEND="${DEPLOY_BACKEND:-1}"
 INSTALL_NGINX_CONF="${INSTALL_NGINX_CONF:-1}"
+STOP_DOCKER_FRONTEND="${STOP_DOCKER_FRONTEND:-1}"
+DISABLE_DEFAULT_NGINX_SITE="${DISABLE_DEFAULT_NGINX_SITE:-1}"
 
 log() {
   printf '\n[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1"
@@ -38,7 +40,6 @@ ensure_sudo() {
 
 deploy_frontend() {
   require_command npm
-  require_command rsync
 
   log "Compilando frontend Angular"
   cd "$FRONTEND_DIR"
@@ -52,7 +53,15 @@ deploy_frontend() {
 
   log "Publicando frontend en $FRONTEND_TARGET_DIR"
   ensure_sudo mkdir -p "$FRONTEND_TARGET_DIR"
-  ensure_sudo rsync -av --delete "$FRONTEND_DIST_DIR"/ "$FRONTEND_TARGET_DIR"/
+
+  if command -v rsync >/dev/null 2>&1; then
+    ensure_sudo rsync -av --delete "$FRONTEND_DIST_DIR"/ "$FRONTEND_TARGET_DIR"/
+    return
+  fi
+
+  log "rsync no esta instalado. Usando copia clasica como respaldo"
+  ensure_sudo find "$FRONTEND_TARGET_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+  ensure_sudo cp -a "$FRONTEND_DIST_DIR"/. "$FRONTEND_TARGET_DIR"/
 }
 
 install_nginx_conf() {
@@ -74,6 +83,11 @@ install_nginx_conf() {
   ensure_sudo ln -sfn \
     "$NGINX_SITES_AVAILABLE_DIR/$NGINX_CONF_NAME" \
     "$NGINX_SITES_ENABLED_DIR/$NGINX_CONF_NAME"
+
+  if [[ "$DISABLE_DEFAULT_NGINX_SITE" == "1" ]]; then
+    ensure_sudo rm -f "$NGINX_SITES_ENABLED_DIR/default"
+  fi
+
   rm -f "$temp_conf"
 
   log "Validando y recargando Nginx"
@@ -89,6 +103,15 @@ deploy_backend() {
   docker compose up -d --build backend
 }
 
+stop_docker_frontend() {
+  require_command docker
+
+  log "Deteniendo frontend Docker para evitar conflicto con Nginx del servidor"
+  cd "$ROOT_DIR"
+  docker compose stop frontend >/dev/null 2>&1 || true
+  docker compose rm -f frontend >/dev/null 2>&1 || true
+}
+
 main() {
   log "Iniciando despliegue en servidor"
 
@@ -98,6 +121,10 @@ main() {
 
   if [[ "$INSTALL_NGINX_CONF" == "1" ]]; then
     install_nginx_conf
+  fi
+
+  if [[ "$STOP_DOCKER_FRONTEND" == "1" ]]; then
+    stop_docker_frontend
   fi
 
   if [[ "$DEPLOY_BACKEND" == "1" ]]; then
