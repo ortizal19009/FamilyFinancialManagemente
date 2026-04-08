@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../banks/domain/bank_models.dart';
+import '../../family/data/family_repository.dart';
 import '../data/mobile_cards_repository.dart';
 import '../domain/cards_models.dart';
 
@@ -13,11 +14,13 @@ class CardsLoansScreen extends StatefulWidget {
 
 class _CardsLoansScreenState extends State<CardsLoansScreen> {
   final _repository = MobileCardsRepository();
+  final _familyRepository = FamilyRepository();
   final _tabController = ValueNotifier<int>(0);
 
   List<CardSummary> _cards = [];
   List<LoanSummary> _loans = [];
   List<BankSummary> _banks = [];
+  List<String> _ownerOptions = [];
   bool _loading = true;
   bool _loadedFromCache = false;
   bool _saving = false;
@@ -38,8 +41,18 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
   Future<void> _loadData() async {
     final snapshot = await _repository.loadSnapshot();
     List<BankSummary> banks = _banks;
+    List<String> ownerOptions = _ownerOptions;
     try {
       banks = await _repository.loadBanks();
+    } catch (_) {}
+    try {
+      final members = await _familyRepository.loadMembers();
+      ownerOptions = members
+          .map((item) => item['name']?.toString().trim() ?? '')
+          .where((item) => item.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort();
     } catch (_) {}
 
     if (!mounted) return;
@@ -47,6 +60,7 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
       _cards = snapshot.cards;
       _loans = snapshot.loans;
       _banks = banks;
+      _ownerOptions = ownerOptions;
       _loadedFromCache = snapshot.loadedFromCache;
       _loading = false;
     });
@@ -85,7 +99,7 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
     }
 
     final cardNameController = TextEditingController(text: card?.cardName ?? '');
-    final ownerController = TextEditingController(text: card?.owner ?? '');
+    String? selectedOwner = card?.owner;
     final lastDigitsController = TextEditingController(text: card?.lastFourDigits ?? '');
     final limitController = TextEditingController(
       text: card == null ? '0' : card.creditLimit.toStringAsFixed(2),
@@ -99,6 +113,11 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
 
     int selectedBankId = card?.bankId ?? bankOptions.first.id;
     String selectedType = card?.cardType ?? 'Débito';
+    final ownerChoices = {
+      ..._ownerOptions,
+      if ((card?.owner ?? '').trim().isNotEmpty) card!.owner!.trim(),
+    }.toList()
+      ..sort();
 
     final result = await showDialog<bool>(
       context: context,
@@ -133,9 +152,22 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
                       decoration: const InputDecoration(labelText: 'Nombre de la tarjeta'),
                     ),
                     const SizedBox(height: 12),
-                    TextField(
-                      controller: ownerController,
+                    DropdownButtonFormField<String?>(
+                      initialValue: selectedOwner,
                       decoration: const InputDecoration(labelText: 'Titular'),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('Sin titular'),
+                        ),
+                        ...ownerChoices.map(
+                          (owner) => DropdownMenuItem<String?>(
+                            value: owner,
+                            child: Text(owner),
+                          ),
+                        ),
+                      ],
+                      onChanged: (value) => setDialogState(() => selectedOwner = value),
                     ),
                     const SizedBox(height: 12),
                     TextField(
@@ -209,7 +241,7 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
         await _repository.createCard(
           bankId: selectedBankId,
           cardName: cardName,
-          owner: ownerController.text.trim(),
+          owner: selectedOwner,
           lastFourDigits: lastDigitsController.text.trim(),
           cardType: selectedType,
           creditLimit: double.tryParse(limitController.text.trim()) ?? 0,
@@ -222,7 +254,7 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
           cardId: card.id,
           bankId: selectedBankId,
           cardName: cardName,
-          owner: ownerController.text.trim(),
+          owner: selectedOwner,
           lastFourDigits: lastDigitsController.text.trim(),
           cardType: selectedType,
           creditLimit: double.tryParse(limitController.text.trim()) ?? 0,
@@ -280,7 +312,7 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
 
   Future<void> _openLoanDialog({LoanSummary? loan}) async {
     final descriptionController = TextEditingController(text: loan?.description ?? '');
-    final ownerController = TextEditingController(text: loan?.owner ?? '');
+    String? selectedOwner = loan?.owner;
     final initialAmountController = TextEditingController(
       text: loan == null ? '0' : loan.initialAmount.toStringAsFixed(2),
     );
@@ -297,6 +329,11 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
     final startDateController = TextEditingController(text: loan?.startDate ?? '');
 
     int? selectedBankId = loan?.bankId;
+    final ownerChoices = {
+      ..._ownerOptions,
+      if ((loan?.owner ?? '').trim().isNotEmpty) loan!.owner!.trim(),
+    }.toList()
+      ..sort();
 
     final result = await showDialog<bool>(
       context: context,
@@ -329,9 +366,22 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
                       decoration: const InputDecoration(labelText: 'Descripcion'),
                     ),
                     const SizedBox(height: 12),
-                    TextField(
-                      controller: ownerController,
+                    DropdownButtonFormField<String?>(
+                      initialValue: selectedOwner,
                       decoration: const InputDecoration(labelText: 'Titular'),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('Sin titular'),
+                        ),
+                        ...ownerChoices.map(
+                          (owner) => DropdownMenuItem<String?>(
+                            value: owner,
+                            child: Text(owner),
+                          ),
+                        ),
+                      ],
+                      onChanged: (value) => setDialogState(() => selectedOwner = value),
                     ),
                     const SizedBox(height: 12),
                     TextField(
@@ -408,7 +458,7 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
         await _repository.createLoan(
           bankId: selectedBankId,
           description: description,
-          owner: ownerController.text.trim(),
+          owner: selectedOwner,
           initialAmount: double.tryParse(initialAmountController.text.trim()) ?? 0,
           totalInstallments: int.tryParse(totalInstallmentsController.text.trim()) ?? 1,
           pendingInstallments: int.tryParse(pendingInstallmentsController.text.trim()) ?? 1,
@@ -422,7 +472,7 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
           loanId: loan.id,
           bankId: selectedBankId,
           description: description,
-          owner: ownerController.text.trim(),
+          owner: selectedOwner,
           initialAmount: double.tryParse(initialAmountController.text.trim()) ?? 0,
           totalInstallments: int.tryParse(totalInstallmentsController.text.trim()) ?? 1,
           pendingInstallments: int.tryParse(pendingInstallmentsController.text.trim()) ?? 1,

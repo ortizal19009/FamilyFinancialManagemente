@@ -163,10 +163,13 @@ class Income(db.Model):
     amount = db.Column(db.Numeric(15, 2), nullable=False)
     source = db.Column(db.String(100), nullable=False)
     income_date = db.Column(db.Date, nullable=False)
+    destination_type = db.Column(db.String(20), default='cash')
+    bank_account_id = db.Column(db.Integer, db.ForeignKey('bank_accounts.id', ondelete='SET NULL'))
     description = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     user = db.relationship('User', backref='income_records', lazy=True)
+    bank_account = db.relationship('BankAccount', backref='income_records', lazy=True)
 
 class Debtor(db.Model):
     __tablename__ = 'debtors'

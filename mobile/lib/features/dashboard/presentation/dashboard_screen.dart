@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/dashboard_repository.dart';
+import '../../expenses/presentation/expenses_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -50,6 +51,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     final stats = Map<String, dynamic>.from((_summary?['stats'] as Map?) ?? {});
+    final accounts = ((_summary?['accounts'] as List?) ?? const [])
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
     final recentExpenses = ((_summary?['recentExpenses'] as List?) ?? const [])
         .map((item) => Map<String, dynamic>.from(item as Map))
         .toList();
@@ -59,6 +63,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Registro rapido', style: Theme.of(context).textTheme.titleMedium),
+                        const SizedBox(height: 6),
+                        const Text('Usa el microfono para anotar un gasto por voz directamente.'),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  FilledButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const ExpensesScreen(autoStartVoice: true),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.mic_rounded),
+                    label: const Text('Audio'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           Wrap(
             spacing: 12,
             runSpacing: 12,
@@ -79,11 +115,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 icon: Icons.receipt_long_rounded,
               ),
               _StatCard(
+                title: 'Ingresos del mes',
+                value: '\$${((stats['monthlyIncome'] as num?) ?? 0).toStringAsFixed(2)}',
+                icon: Icons.savings_rounded,
+              ),
+              _StatCard(
                 title: 'Activos',
                 value: '\$${((stats['totalAssets'] as num?) ?? 0).toStringAsFixed(2)}',
                 icon: Icons.home_work_rounded,
               ),
             ],
+          ),
+          const SizedBox(height: 20),
+          Text('Saldos en bancos', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 12),
+          if (accounts.isEmpty)
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('No hay cuentas registradas para mostrar saldos.'),
+              ),
+            ),
+          ...accounts.map(
+            (account) => Card(
+              child: ListTile(
+                leading: const Icon(Icons.account_balance_rounded),
+                title: Text(account['bank_name']?.toString() ?? 'Banco'),
+                subtitle: Text(
+                  '${account['account_type'] ?? 'Cuenta'} · ${account['account_number'] ?? ''}',
+                ),
+                trailing: Text(
+                  '\$${((account['current_balance'] as num?) ?? 0).toStringAsFixed(2)}',
+                ),
+              ),
+            ),
           ),
           const SizedBox(height: 20),
           Text('Ultimos gastos', style: Theme.of(context).textTheme.titleLarge),

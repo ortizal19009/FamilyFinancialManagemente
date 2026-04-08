@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../family/data/family_repository.dart';
 import '../data/mobile_banks_repository.dart';
 import '../domain/bank_models.dart';
 
@@ -12,10 +13,12 @@ class BanksScreen extends StatefulWidget {
 
 class _BanksScreenState extends State<BanksScreen> {
   final _repository = MobileBanksRepository();
+  final _familyRepository = FamilyRepository();
   final _tabController = ValueNotifier<int>(0);
 
   List<BankSummary> _banks = [];
   List<BankAccountSummary> _accounts = [];
+  List<String> _ownerOptions = [];
   bool _loading = true;
   bool _loadedFromCache = false;
   bool _saving = false;
@@ -35,10 +38,21 @@ class _BanksScreenState extends State<BanksScreen> {
 
   Future<void> _loadData() async {
     final snapshot = await _repository.loadSnapshot();
+    List<String> ownerOptions = _ownerOptions;
+    try {
+      final members = await _familyRepository.loadMembers();
+      ownerOptions = members
+          .map((item) => item['name']?.toString().trim() ?? '')
+          .where((item) => item.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort();
+    } catch (_) {}
     if (!mounted) return;
     setState(() {
       _banks = snapshot.banks;
       _accounts = snapshot.accounts;
+      _ownerOptions = ownerOptions;
       _loadedFromCache = snapshot.loadedFromCache;
       _loading = false;
     });
@@ -166,11 +180,16 @@ class _BanksScreenState extends State<BanksScreen> {
 
     int selectedBankId = account?.bankId ?? _banks.first.id;
     String selectedType = account?.accountType ?? 'Ahorros';
+    String? selectedOwner = account?.owner;
     final numberController = TextEditingController(text: account?.accountNumber ?? '');
-    final ownerController = TextEditingController(text: account?.owner ?? '');
     final balanceController = TextEditingController(
       text: account == null ? '0' : account.currentBalance.toStringAsFixed(2),
     );
+    final ownerChoices = {
+      ..._ownerOptions,
+      if ((account?.owner ?? '').trim().isNotEmpty) account!.owner!.trim(),
+    }.toList()
+      ..sort();
 
     final result = await showDialog<bool>(
       context: context,
@@ -219,9 +238,22 @@ class _BanksScreenState extends State<BanksScreen> {
                       },
                     ),
                     const SizedBox(height: 12),
-                    TextField(
-                      controller: ownerController,
+                    DropdownButtonFormField<String?>(
+                      initialValue: selectedOwner,
                       decoration: const InputDecoration(labelText: 'Titular'),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('Sin titular'),
+                        ),
+                        ...ownerChoices.map(
+                          (owner) => DropdownMenuItem<String?>(
+                            value: owner,
+                            child: Text(owner),
+                          ),
+                        ),
+                      ],
+                      onChanged: (value) => setDialogState(() => selectedOwner = value),
                     ),
                     const SizedBox(height: 12),
                     TextField(
@@ -265,7 +297,7 @@ class _BanksScreenState extends State<BanksScreen> {
           bankId: selectedBankId,
           accountNumber: accountNumber,
           accountType: selectedType,
-          owner: ownerController.text.trim(),
+          owner: selectedOwner,
           currentBalance: double.tryParse(balanceController.text.trim()) ?? 0,
         );
         _message = 'Cuenta guardada correctamente. Si ya existia, se fusiono.';
@@ -275,7 +307,7 @@ class _BanksScreenState extends State<BanksScreen> {
           bankId: selectedBankId,
           accountNumber: accountNumber,
           accountType: selectedType,
-          owner: ownerController.text.trim(),
+          owner: selectedOwner,
           currentBalance: double.tryParse(balanceController.text.trim()) ?? 0,
         );
         _message = 'Cuenta actualizada correctamente';

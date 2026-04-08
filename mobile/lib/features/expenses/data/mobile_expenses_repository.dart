@@ -19,6 +19,8 @@ class MobileExpensesRepository {
 
   static const _expensesCacheKey = 'mobile_expenses_cache';
   static const _categoriesCacheKey = 'mobile_expense_categories_cache';
+  static const _accountsCacheKey = 'mobile_bank_accounts_cache';
+  static const _cardsCacheKey = 'mobile_cards_cache';
 
   int _nextLocalCategoryId() => -DateTime.now().microsecondsSinceEpoch;
 
@@ -188,6 +190,64 @@ class MobileExpensesRepository {
       ...cached.where((item) => item['local_id'] != localId),
     ];
     await _cacheStorage.saveCollection(_expensesCacheKey, updated);
+    await _applyLocalPaymentEffect(
+      paymentMethod: paymentMethod,
+      amount: items.fold<double>(
+        0,
+        (sum, item) => sum + ((item['amount'] as num?)?.toDouble() ?? 0),
+      ),
+      cardId: cardId,
+      bankAccountId: bankAccountId,
+      sign: 1,
+    );
+  }
+
+  Future<void> _applyLocalPaymentEffect({
+    required String paymentMethod,
+    required double amount,
+    int? cardId,
+    int? bankAccountId,
+    required int sign,
+  }) async {
+    if (paymentMethod == 'Banca Móvil' && bankAccountId != null) {
+      final cachedAccounts = await _cacheStorage.getCollection(_accountsCacheKey);
+      final updatedAccounts = cachedAccounts
+          .map((item) => item['id'] == bankAccountId
+              ? {
+                  ...item,
+                  'current_balance': ((item['current_balance'] as num?)?.toDouble() ?? 0) - (amount * sign),
+                }
+              : item)
+          .toList();
+      await _cacheStorage.saveCollection(_accountsCacheKey, updatedAccounts);
+      return;
+    }
+
+    if ((paymentMethod == 'Tarjeta Crédito' || paymentMethod == 'Tarjeta Débito') && cardId != null) {
+      final cachedCards = await _cacheStorage.getCollection(_cardsCacheKey);
+      final updatedCards = cachedCards
+          .map((item) {
+            if (item['id'] != cardId) {
+              return item;
+            }
+            final cardType = item['card_type'] as String? ?? '';
+            if (paymentMethod == 'Tarjeta Crédito' || cardType == 'Crédito') {
+              final creditLimit = (item['credit_limit'] as num?)?.toDouble() ?? 0;
+              final currentDebt = ((item['current_debt'] as num?)?.toDouble() ?? 0) + (amount * sign);
+              return {
+                ...item,
+                'current_debt': currentDebt,
+                'available_balance': (creditLimit - currentDebt).clamp(0, double.infinity),
+              };
+            }
+            return {
+              ...item,
+              'available_balance': ((item['available_balance'] as num?)?.toDouble() ?? 0) - (amount * sign),
+            };
+          })
+          .toList();
+      await _cacheStorage.saveCollection(_cardsCacheKey, updatedCards);
+    }
   }
 
   Future<List<MobileExpenseRecord>> _loadPendingLocalExpenses() async {

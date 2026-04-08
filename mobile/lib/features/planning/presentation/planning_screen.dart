@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/planning_repository.dart';
 import '../../expenses/domain/expense_category.dart';
+import '../../expenses/domain/expense_icon_option.dart';
 
 class PlanningScreen extends StatefulWidget {
   const PlanningScreen({super.key});
@@ -13,6 +14,20 @@ class PlanningScreen extends StatefulWidget {
 class _PlanningScreenState extends State<PlanningScreen> {
   final _repository = PlanningRepository();
   final _yearController = TextEditingController();
+  static const List<String> _monthNames = [
+    'Enero',
+    'Febrero',
+    'Marzo',
+    'Abril',
+    'Mayo',
+    'Junio',
+    'Julio',
+    'Agosto',
+    'Septiembre',
+    'Octubre',
+    'Noviembre',
+    'Diciembre',
+  ];
   List<Map<String, dynamic>> _plans = [];
   List<ExpenseCategory> _categories = [];
   bool _loading = true;
@@ -129,6 +144,105 @@ class _PlanningScreenState extends State<PlanningScreen> {
     }
   }
 
+  Future<void> _openCategoryDialog() async {
+    final nameController = TextEditingController();
+    String selectedIcon = expenseIconOptions.first.key;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Nueva categoria'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'Nombre de la categoria'),
+                ),
+                const SizedBox(height: 16),
+                Text('Galeria de iconos', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: expenseIconOptions.map((option) {
+                    final selected = option.key == selectedIcon;
+                    return InkWell(
+                      onTap: () => setDialogState(() => selectedIcon = option.key),
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        width: 92,
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.14)
+                              : Theme.of(context).colorScheme.surface,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: selected
+                                ? Theme.of(context).colorScheme.primary
+                                : Theme.of(context).colorScheme.outline.withValues(alpha: 0.18),
+                          ),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(option.icon),
+                            const SizedBox(height: 6),
+                            Text(
+                              option.label,
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Guardar'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    final name = nameController.text.trim();
+    if (name.isEmpty) {
+      setState(() => _message = 'El nombre de la categoria es obligatorio');
+      return;
+    }
+
+    try {
+      await _repository.createCategory(
+        name: name,
+        icon: selectedIcon,
+      );
+      await _loadData();
+      if (!mounted) return;
+      setState(() => _message = 'Categoria creada correctamente');
+    } catch (error) {
+      setState(() => _message = error.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
   Future<void> _deletePlan(Map<String, dynamic> plan) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -191,7 +305,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
                                 12,
                                 (index) => DropdownMenuItem(
                                   value: index + 1,
-                                  child: Text('Mes ${index + 1}'),
+                                  child: Text(_monthNames[index]),
                                 ),
                               ),
                               onChanged: (value) {
@@ -216,6 +330,15 @@ class _PlanningScreenState extends State<PlanningScreen> {
                             ),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: OutlinedButton.icon(
+                          onPressed: _openCategoryDialog,
+                          icon: const Icon(Icons.playlist_add_rounded),
+                          label: const Text('Crear categoria'),
+                        ),
                       ),
                       if (_message != null) ...[
                         const SizedBox(height: 12),

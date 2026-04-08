@@ -15,6 +15,8 @@ class PlanningRepository {
   final LocalCacheStorage _cacheStorage;
   static const _planningCategoriesCacheKey = 'mobile_planning_categories_cache';
 
+  int _nextLocalCategoryId() => -DateTime.now().microsecondsSinceEpoch;
+
   Future<List<Map<String, dynamic>>> loadPlanning({
     required int month,
     required int year,
@@ -48,6 +50,39 @@ class PlanningRepository {
       final cached = await _cacheStorage.getCollection(_planningCategoriesCacheKey);
       return cached.map(ExpenseCategory.fromMap).toList();
     }
+  }
+
+  Future<ExpenseCategory> createCategory({
+    required String name,
+    String? icon,
+  }) async {
+    final localCategory = ExpenseCategory(
+      id: _nextLocalCategoryId(),
+      name: name,
+      icon: icon,
+    );
+    final cached = await _cacheStorage.getCollection(_planningCategoriesCacheKey);
+    final updated = [
+      localCategory.toMap(),
+      ...cached.where(
+        (item) => (item['name'] as String? ?? '').trim().toLowerCase() != name.trim().toLowerCase(),
+      ),
+    ];
+    await _cacheStorage.saveCollection(_planningCategoriesCacheKey, updated);
+    await AppServices.syncService.enqueue(
+      OfflineOperation(
+        id: 'planning-category-${localCategory.id}',
+        module: 'planning',
+        method: 'POST',
+        path: '/expenses/categories',
+        payload: {
+          'name': name,
+          'icon': icon,
+        },
+        createdAt: DateTime.now(),
+      ),
+    );
+    return localCategory;
   }
 
   Future<void> createPlan({

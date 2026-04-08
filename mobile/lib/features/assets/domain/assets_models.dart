@@ -45,6 +45,9 @@ class IncomeSummary {
     required this.amount,
     required this.source,
     required this.incomeDate,
+    required this.destinationType,
+    required this.bankAccountId,
+    required this.bankAccountName,
     required this.description,
   });
 
@@ -53,6 +56,9 @@ class IncomeSummary {
   final double amount;
   final String source;
   final String incomeDate;
+  final String destinationType;
+  final int? bankAccountId;
+  final String? bankAccountName;
   final String? description;
 
   Map<String, dynamic> toMap() {
@@ -62,6 +68,9 @@ class IncomeSummary {
       'amount': amount,
       'source': source,
       'income_date': incomeDate,
+      'destination_type': destinationType,
+      'bank_account_id': bankAccountId,
+      'bank_account_name': bankAccountName,
       'description': description,
     };
   }
@@ -73,6 +82,9 @@ class IncomeSummary {
       amount: (map['amount'] as num?)?.toDouble() ?? 0,
       source: map['source'] as String? ?? '',
       incomeDate: map['income_date'] as String? ?? '',
+      destinationType: map['destination_type'] as String? ?? 'cash',
+      bankAccountId: map['bank_account_id'] as int?,
+      bankAccountName: map['bank_account_name'] as String?,
       description: map['description'] as String?,
     );
   }

@@ -16,6 +16,7 @@ class MobileAssetsRepository {
 
   static const _assetsCacheKey = 'mobile_assets_cache';
   static const _incomeCacheKey = 'mobile_income_cache';
+  static const _accountsCacheKey = 'mobile_bank_accounts_cache';
 
   Future<AssetsSnapshot> loadSnapshot() async {
     try {
@@ -153,14 +154,23 @@ class MobileAssetsRepository {
     required double amount,
     required String source,
     required String incomeDate,
+    required String destinationType,
+    int? bankAccountId,
+    String? bankAccountName,
     String? description,
   }) async {
+    if (destinationType == 'bank_account' && bankAccountId == null) {
+      throw Exception('Selecciona una cuenta para este ingreso');
+    }
     final localIncome = IncomeSummary(
       id: _nextLocalId(),
       userName: null,
       amount: amount,
       source: source,
       incomeDate: incomeDate,
+      destinationType: destinationType,
+      bankAccountId: bankAccountId,
+      bankAccountName: bankAccountName,
       description: description,
     );
     final cached = await _cacheStorage.getCollection(_incomeCacheKey);
@@ -174,10 +184,18 @@ class MobileAssetsRepository {
         'amount': amount,
         'source': source,
         'income_date': incomeDate,
+        'destination_type': destinationType,
+        'bank_account_id': bankAccountId,
         'description': description,
       },
       createdAt: DateTime.now(),
     ));
+    await _applyLocalIncomeEffect(
+      destinationType: destinationType,
+      amount: amount,
+      bankAccountId: bankAccountId,
+      sign: 1,
+    );
   }
 
   Future<void> updateIncome({
@@ -185,10 +203,25 @@ class MobileAssetsRepository {
     required double amount,
     required String source,
     required String incomeDate,
+    required String destinationType,
+    int? bankAccountId,
+    String? bankAccountName,
     String? description,
   }) async {
     if (id < 0) {
       final cached = await _cacheStorage.getCollection(_incomeCacheKey);
+      final previous = cached.cast<Map<String, dynamic>?>().firstWhere(
+            (item) => item?['id'] == id,
+            orElse: () => null,
+          );
+      if (previous != null) {
+        await _applyLocalIncomeEffect(
+          destinationType: previous['destination_type'] as String? ?? 'cash',
+          amount: (previous['amount'] as num?)?.toDouble() ?? 0,
+          bankAccountId: previous['bank_account_id'] as int?,
+          sign: -1,
+        );
+      }
       final updated = cached
           .map((item) => item['id'] == id
               ? {
@@ -196,17 +229,28 @@ class MobileAssetsRepository {
                   'amount': amount,
                   'source': source,
                   'income_date': incomeDate,
+                  'destination_type': destinationType,
+                  'bank_account_id': bankAccountId,
+                  'bank_account_name': bankAccountName,
                   'description': description,
                 }
               : item)
           .toList();
       await _cacheStorage.saveCollection(_incomeCacheKey, updated);
+      await _applyLocalIncomeEffect(
+        destinationType: destinationType,
+        amount: amount,
+        bankAccountId: bankAccountId,
+        sign: 1,
+      );
       return;
     }
     await _apiClient.put('/assets_income/income/$id', {
       'amount': amount,
       'source': source,
       'income_date': incomeDate,
+      'destination_type': destinationType,
+      'bank_account_id': bankAccountId,
       'description': description,
     });
   }
@@ -214,6 +258,18 @@ class MobileAssetsRepository {
   Future<void> deleteIncome(int id) async {
     if (id < 0) {
       final cached = await _cacheStorage.getCollection(_incomeCacheKey);
+      final previous = cached.cast<Map<String, dynamic>?>().firstWhere(
+            (item) => item?['id'] == id,
+            orElse: () => null,
+          );
+      if (previous != null) {
+        await _applyLocalIncomeEffect(
+          destinationType: previous['destination_type'] as String? ?? 'cash',
+          amount: (previous['amount'] as num?)?.toDouble() ?? 0,
+          bankAccountId: previous['bank_account_id'] as int?,
+          sign: -1,
+        );
+      }
       await _cacheStorage.saveCollection(
         _incomeCacheKey,
         cached.where((item) => item['id'] != id).toList(),
@@ -221,5 +277,27 @@ class MobileAssetsRepository {
       return;
     }
     await _apiClient.delete('/assets_income/income/$id');
+  }
+
+  Future<void> _applyLocalIncomeEffect({
+    required String destinationType,
+    required double amount,
+    int? bankAccountId,
+    required int sign,
+  }) async {
+    if (destinationType != 'bank_account' || bankAccountId == null) {
+      return;
+    }
+
+    final cachedAccounts = await _cacheStorage.getCollection(_accountsCacheKey);
+    final updatedAccounts = cachedAccounts
+        .map((item) => item['id'] == bankAccountId
+            ? {
+                ...item,
+                'current_balance': ((item['current_balance'] as num?)?.toDouble() ?? 0) + (amount * sign),
+              }
+            : item)
+        .toList();
+    await _cacheStorage.saveCollection(_accountsCacheKey, updatedAccounts);
   }
 }

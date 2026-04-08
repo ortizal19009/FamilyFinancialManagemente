@@ -1,15 +1,22 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 
 import '../../../core/app_services.dart';
 import '../../banks/domain/bank_models.dart';
 import '../../cards/domain/cards_models.dart';
 import '../data/mobile_expenses_repository.dart';
 import '../domain/expense_category.dart';
+import '../domain/expense_icon_option.dart';
 import '../domain/mobile_expense_record.dart';
 
 class ExpensesScreen extends StatefulWidget {
-  const ExpensesScreen({super.key});
+  const ExpensesScreen({
+    super.key,
+    this.autoStartVoice = false,
+  });
+
+  final bool autoStartVoice;
 
   @override
   State<ExpensesScreen> createState() => _ExpensesScreenState();
@@ -18,6 +25,7 @@ class ExpensesScreen extends StatefulWidget {
 class _ExpensesScreenState extends State<ExpensesScreen> {
   final _repository = MobileExpensesRepository();
   final _searchController = TextEditingController();
+  final SpeechToText _speechToText = SpeechToText();
 
   List<ExpenseCategory> _categories = [];
   List<MobileExpenseRecord> _expenses = [];
@@ -25,6 +33,9 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
   List<BankAccountSummary> _accounts = [];
   bool _loading = true;
   bool _saving = false;
+  bool _speechAvailable = false;
+  bool _listeningToVoice = false;
+  bool _autoStartedVoice = false;
   String? _message;
   String _paymentMethodFilter = 'Todos';
   String _sortOption = 'date_desc';
@@ -33,6 +44,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
   void initState() {
     super.initState();
     _loadData();
+    _initializeSpeech();
     AppServices.syncService.addListener(_handleSyncChange);
   }
 
@@ -83,6 +95,40 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       _accounts = accounts;
       _loading = false;
     });
+  }
+
+  Future<void> _initializeSpeech() async {
+    try {
+      final available = await _speechToText.initialize(
+        onError: (_) {
+          if (!mounted) return;
+          setState(() {
+            _listeningToVoice = false;
+            _message =
+                'El microfono no esta disponible. En emulador verifica permiso de microfono, imagen con Google y reconocimiento de voz habilitado.';
+          });
+        },
+        onStatus: (status) {
+          if (!mounted) return;
+          if (status == 'done' || status == 'notListening') {
+            setState(() => _listeningToVoice = false);
+          }
+        },
+      );
+      if (!mounted) return;
+      setState(() => _speechAvailable = available);
+      if (available && widget.autoStartVoice && !_autoStartedVoice) {
+        _autoStartedVoice = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _toggleVoiceExpense();
+          }
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _speechAvailable = false);
+    }
   }
 
   Future<PlatformFile?> _pickReceipt() async {
@@ -356,37 +402,76 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
 
   Future<ExpenseCategory?> _openCreateCategoryDialog() async {
     final nameController = TextEditingController();
-    final iconController = TextEditingController();
+    String selectedIcon = expenseIconOptions.first.key;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Nuevo rubro'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(labelText: 'Nombre del rubro'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: iconController,
-                decoration: const InputDecoration(labelText: 'Icono opcional'),
-              ),
-            ],
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Nuevo rubro'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'Nombre del rubro'),
+                ),
+                const SizedBox(height: 16),
+                Text('Galeria de iconos', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: expenseIconOptions.map((option) {
+                    final selected = option.key == selectedIcon;
+                    return InkWell(
+                      onTap: () => setDialogState(() => selectedIcon = option.key),
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        width: 92,
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.14)
+                              : Theme.of(context).colorScheme.surface,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: selected
+                                ? Theme.of(context).colorScheme.primary
+                                : Theme.of(context).colorScheme.outline.withValues(alpha: 0.18),
+                          ),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(option.icon),
+                            const SizedBox(height: 6),
+                            Text(
+                              option.label,
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Guardar'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Guardar'),
-          ),
-        ],
       ),
     );
 
@@ -404,7 +489,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     try {
       final category = await _repository.createCategory(
         name: name,
-        icon: iconController.text.trim().isEmpty ? null : iconController.text.trim(),
+        icon: selectedIcon,
       );
       await _loadData();
       _message = 'Rubro creado correctamente';
@@ -419,17 +504,30 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     }
   }
 
-  Future<void> _openCreateExpenseDialog() async {
-    final descriptionController = TextEditingController();
+  Future<void> _openCreateExpenseDialog({
+    String? initialDescription,
+    List<Map<String, dynamic>>? initialItems,
+  }) async {
+    final descriptionController = TextEditingController(text: initialDescription ?? '');
     final dateController = TextEditingController(text: _formatDate(DateTime.now()));
     String paymentMethod = 'Efectivo';
     int? selectedCardId;
     int? selectedAccountId;
     String? receiptPath;
     String? receiptName;
-    final draftItems = [
-      _ExpenseDraftItem(categoryId: _categories.isNotEmpty ? _categories.first.id : null),
-    ];
+    final seedItems = initialItems ?? const [];
+    final draftItems = seedItems.isNotEmpty
+        ? seedItems
+            .map(
+              (item) => _ExpenseDraftItem(
+                categoryId: item['category_id'] as int?,
+                amount: (item['amount'] as num?)?.toDouble(),
+              ),
+            )
+            .toList()
+        : [
+            _ExpenseDraftItem(categoryId: _categories.isNotEmpty ? _categories.first.id : null),
+          ];
 
     double totalAmount() => draftItems.fold<double>(
           0,
@@ -780,6 +878,180 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     return filtered;
   }
 
+  Future<void> _toggleVoiceExpense() async {
+    if (_listeningToVoice) {
+      await _stopVoiceRecognition();
+      return;
+    }
+
+    if (!_speechAvailable) {
+      await _initializeSpeech();
+    }
+
+    if (!_speechAvailable) {
+      setState(() {
+        _message =
+            'El reconocimiento de voz no esta disponible en este dispositivo. En emulador prueba habilitar microfono, instalar servicios de Google y volver a abrir la app.';
+      });
+      return;
+    }
+
+    String capturedWords = '';
+    setState(() {
+      _listeningToVoice = true;
+      _message = 'Escuchando gasto por voz...';
+    });
+
+    await _speechToText.listen(
+      localeId: 'es',
+      listenFor: const Duration(seconds: 12),
+      pauseFor: const Duration(seconds: 3),
+      partialResults: true,
+      cancelOnError: true,
+      listenMode: ListenMode.confirmation,
+      onResult: (result) {
+        capturedWords = result.recognizedWords.trim();
+      },
+    );
+
+    await Future<void>.delayed(const Duration(seconds: 12));
+    if (_speechToText.isListening) {
+      await _speechToText.stop();
+    }
+    if (!mounted) return;
+
+    setState(() => _listeningToVoice = false);
+    final transcript = capturedWords.trim();
+    if (transcript.isEmpty) {
+      setState(() => _message = 'No pude entender el audio. Intenta de nuevo.');
+      return;
+    }
+
+    final parsedItems = _suggestItemsFromTranscript(transcript);
+    setState(() => _message = 'Audio reconocido: $transcript');
+    await _openCreateExpenseDialog(
+      initialDescription: transcript,
+      initialItems: parsedItems,
+    );
+  }
+
+  Future<void> _stopVoiceRecognition() async {
+    if (_speechToText.isListening) {
+      await _speechToText.stop();
+    }
+    if (!mounted) return;
+    setState(() => _listeningToVoice = false);
+  }
+
+  List<Map<String, dynamic>> _suggestItemsFromTranscript(String transcript) {
+    final guessedCategoryId = _guessCategoryId(transcript);
+    final guessedAmount = _extractAmountFromTranscript(transcript);
+    return [
+      {
+        'category_id': guessedCategoryId ?? (_categories.isNotEmpty ? _categories.first.id : null),
+        'amount': guessedAmount > 0 ? guessedAmount : 0.0,
+      },
+    ];
+  }
+
+  int? _guessCategoryId(String transcript) {
+    final normalized = _normalizeTranscript(transcript);
+    final keywordMap = <String, List<String>>{
+      'alimentos': ['supermercado', 'comida', 'almuerzo', 'desayuno', 'cena', 'mercado'],
+      'medicina': ['farmacia', 'medicina', 'medicamento', 'doctor'],
+      'vivienda': ['alquiler', 'casa', 'arriendo'],
+      'transporte': ['taxi', 'uber', 'gasolina', 'pasaje', 'bus'],
+      'educacion': ['colegio', 'escuela', 'universidad', 'cuaderno', 'matricula'],
+      'entretenimiento': ['cine', 'salida', 'juego', 'fiesta'],
+      'servicios basicos': ['luz', 'agua', 'internet', 'telefono'],
+    };
+
+    for (final category in _categories) {
+      final categoryName = _normalizeTranscript(category.name);
+      if (normalized.contains(categoryName)) {
+        return category.id;
+      }
+      for (final keyword in keywordMap[categoryName] ?? const <String>[]) {
+        if (normalized.contains(keyword)) {
+          return category.id;
+        }
+      }
+    }
+    return null;
+  }
+
+  double _extractAmountFromTranscript(String transcript) {
+    final amountRegex = RegExp(r'(\d+[.,]?\d{0,2})');
+    final matches = amountRegex.allMatches(transcript);
+    if (matches.isEmpty) {
+      return 0;
+    }
+    final rawValue = matches.last.group(1)?.replaceAll(',', '.') ?? '0';
+    return double.tryParse(rawValue) ?? 0;
+  }
+
+  String _normalizeTranscript(String value) {
+    const replacements = {
+      'á': 'a',
+      'é': 'e',
+      'í': 'i',
+      'ó': 'o',
+      'ú': 'u',
+      'ñ': 'n',
+    };
+
+    var normalized = value.toLowerCase();
+    replacements.forEach((key, replacement) {
+      normalized = normalized.replaceAll(key, replacement);
+    });
+    return normalized;
+  }
+
+  Future<void> _showAudioHelp() async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ayuda para ingreso por audio'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Text(
+                'Habla en una sola frase y menciona, si puedes, estos datos:',
+              ),
+              SizedBox(height: 12),
+              Text('1. Que compraste o para que fue el gasto.'),
+              Text('2. El monto.'),
+              Text('3. La forma de pago.'),
+              Text('4. La tarjeta, banco o cuenta usada si aplica.'),
+              SizedBox(height: 16),
+              Text('Ejemplos recomendados:'),
+              SizedBox(height: 8),
+              Text('Compre supermercado por 25 dolares en efectivo'),
+              Text('Pague farmacia 18.50 con tarjeta de credito Visa'),
+              Text('Gaste 12 en taxi con banca movil desde Banco Pichincha'),
+              Text('Pague internet 30 dolares con tarjeta de debito'),
+              SizedBox(height: 16),
+              Text('Consejos:'),
+              SizedBox(height: 8),
+              Text('Menciona solo un gasto por audio.'),
+              Text('Di el monto al final o muy cerca del producto.'),
+              Text('Usa palabras claras como efectivo, tarjeta de credito, tarjeta de debito o banca movil.'),
+              Text('Si el sistema no detecta todo, igual abrira el formulario para que completes o corrijas.'),
+            ],
+          ),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Entendido'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -925,8 +1197,29 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         ),
         Positioned(
           right: 20,
+          bottom: 164,
+          child: FloatingActionButton.small(
+            heroTag: 'voice-help-fab',
+            onPressed: _showAudioHelp,
+            tooltip: 'Ayuda audio',
+            child: const Icon(Icons.help_outline_rounded),
+          ),
+        ),
+        Positioned(
+          right: 20,
+          bottom: 92,
+          child: FloatingActionButton.small(
+            heroTag: 'voice-expense-fab',
+            onPressed: _saving ? null : _toggleVoiceExpense,
+            tooltip: _listeningToVoice ? 'Detener audio' : 'Registrar por audio',
+            child: Icon(_listeningToVoice ? Icons.mic_off_rounded : Icons.mic_rounded),
+          ),
+        ),
+        Positioned(
+          right: 20,
           bottom: 20,
           child: FloatingActionButton(
+            heroTag: 'create-expense-fab',
             onPressed: _saving ? null : _openCreateExpenseDialog,
             child: const Icon(Icons.add_rounded),
           ),

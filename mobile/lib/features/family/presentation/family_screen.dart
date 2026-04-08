@@ -11,6 +11,18 @@ class FamilyScreen extends StatefulWidget {
 
 class _FamilyScreenState extends State<FamilyScreen> {
   final _repository = FamilyRepository();
+  static const List<String> _relationshipOptions = [
+    'Esposa',
+    'Esposo',
+    'Pareja',
+    'Hijo',
+    'Hija',
+    'Padre',
+    'Madre',
+    'Hermano',
+    'Hermana',
+    'Otro',
+  ];
   List<Map<String, dynamic>> _members = [];
   bool _loading = true;
   String? _message;
@@ -41,41 +53,50 @@ class _FamilyScreenState extends State<FamilyScreen> {
 
   Future<void> _openMemberDialog({Map<String, dynamic>? member}) async {
     final nameController = TextEditingController(text: member?['name']?.toString() ?? '');
-    final relationshipController = TextEditingController(text: member?['relationship']?.toString() ?? 'Yo');
+    String selectedRelationship = member?['relationship']?.toString() ?? _relationshipOptions.first;
     final linkedEmailController = TextEditingController(
       text: member?['linked_user_email']?.toString() ?? '',
     );
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(member == null ? 'Nuevo integrante' : 'Editar integrante'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: 'Nombre'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: relationshipController,
-              decoration: const InputDecoration(labelText: 'Parentesco'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: linkedEmailController,
-              decoration: const InputDecoration(
-                labelText: 'Correo de su cuenta',
-                hintText: 'Opcional, para vincular su usuario',
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(member == null ? 'Nuevo integrante' : 'Editar integrante'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: 'Nombre'),
               ),
-            ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: selectedRelationship,
+                decoration: const InputDecoration(labelText: 'Parentesco'),
+                items: _relationshipOptions
+                    .map((option) => DropdownMenuItem(value: option, child: Text(option)))
+                    .toList(),
+                onChanged: (value) {
+                  if (value == null) return;
+                  setDialogState(() => selectedRelationship = value);
+                },
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: linkedEmailController,
+                decoration: const InputDecoration(
+                  labelText: 'Correo de su cuenta',
+                  hintText: 'Opcional, para vincular su usuario',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')),
+            FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Guardar')),
           ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Guardar')),
-        ],
       ),
     );
 
@@ -85,7 +106,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
       if (member == null) {
         await _repository.createMember(
           name: nameController.text.trim(),
-          relationship: relationshipController.text.trim(),
+          relationship: selectedRelationship,
           linkedUserEmail: linkedEmailController.text.trim().isEmpty
               ? null
               : linkedEmailController.text.trim(),
@@ -95,7 +116,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
         await _repository.updateMember(
           id: member['id'] as int,
           name: nameController.text.trim(),
-          relationship: relationshipController.text.trim(),
+          relationship: selectedRelationship,
           linkedUserEmail: linkedEmailController.text.trim().isEmpty
               ? null
               : linkedEmailController.text.trim(),

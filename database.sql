@@ -136,6 +136,8 @@ CREATE TABLE IF NOT EXISTS income (
     amount DECIMAL(15, 2) NOT NULL,
     source VARCHAR(100) NOT NULL, -- Ej: Sueldo, Venta, etc.
     income_date DATE NOT NULL,
+    destination_type VARCHAR(20) DEFAULT 'cash', -- 'cash' o 'bank_account'
+    bank_account_id INTEGER REFERENCES bank_accounts(id) ON DELETE SET NULL,
     description TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
