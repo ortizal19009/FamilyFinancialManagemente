@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../assets/presentation/assets_income_screen.dart';
+import '../../banks/presentation/banks_screen.dart';
+import '../../cards/presentation/cards_loans_screen.dart';
 import '../data/dashboard_repository.dart';
 import '../../expenses/presentation/expenses_screen.dart';
 
@@ -38,6 +41,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _loading = false;
       });
     }
+  }
+
+  Future<void> _openScreen(Widget screen) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => screen),
+    );
+    if (!mounted) return;
+    await _loadData();
   }
 
   @override
@@ -95,36 +106,53 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              _StatCard(
-                title: 'Saldo disponible',
-                value: '\$${((stats['availableBalance'] as num?) ?? 0).toStringAsFixed(2)}',
-                icon: Icons.account_balance_wallet_rounded,
-              ),
-              _StatCard(
-                title: 'Deuda total',
-                value: '\$${((stats['totalDebt'] as num?) ?? 0).toStringAsFixed(2)}',
-                icon: Icons.credit_card_rounded,
-              ),
-              _StatCard(
-                title: 'Gastos del mes',
-                value: '\$${((stats['monthlyExpenses'] as num?) ?? 0).toStringAsFixed(2)}',
-                icon: Icons.receipt_long_rounded,
-              ),
-              _StatCard(
-                title: 'Ingresos del mes',
-                value: '\$${((stats['monthlyIncome'] as num?) ?? 0).toStringAsFixed(2)}',
-                icon: Icons.savings_rounded,
-              ),
-              _StatCard(
-                title: 'Activos',
-                value: '\$${((stats['totalAssets'] as num?) ?? 0).toStringAsFixed(2)}',
-                icon: Icons.home_work_rounded,
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final crossAxisCount = width >= 900 ? 4 : width >= 600 ? 3 : 2;
+              final childAspectRatio = width >= 600 ? 1.35 : 1.15;
+
+              return GridView.count(
+                crossAxisCount: crossAxisCount,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: childAspectRatio,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
+                  _StatCard(
+                    title: 'Saldo disponible',
+                    value: '\$${((stats['availableBalance'] as num?) ?? 0).toStringAsFixed(2)}',
+                    icon: Icons.account_balance_wallet_rounded,
+                    onTap: () => _openScreen(const BanksScreen()),
+                  ),
+                  _StatCard(
+                    title: 'Deuda total',
+                    value: '\$${((stats['totalDebt'] as num?) ?? 0).toStringAsFixed(2)}',
+                    icon: Icons.credit_card_rounded,
+                    onTap: () => _openScreen(const CardsLoansScreen()),
+                  ),
+                  _StatCard(
+                    title: 'Gastos del mes',
+                    value: '\$${((stats['monthlyExpenses'] as num?) ?? 0).toStringAsFixed(2)}',
+                    icon: Icons.receipt_long_rounded,
+                    onTap: () => _openScreen(const ExpensesScreen()),
+                  ),
+                  _StatCard(
+                    title: 'Ingresos del mes',
+                    value: '\$${((stats['monthlyIncome'] as num?) ?? 0).toStringAsFixed(2)}',
+                    icon: Icons.savings_rounded,
+                    onTap: () => _openScreen(const AssetsIncomeScreen()),
+                  ),
+                  _StatCard(
+                    title: 'Activos',
+                    value: '\$${((stats['totalAssets'] as num?) ?? 0).toStringAsFixed(2)}',
+                    icon: Icons.home_work_rounded,
+                    onTap: () => _openScreen(const AssetsIncomeScreen()),
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 20),
           Text('Saldos en bancos', style: Theme.of(context).textTheme.titleLarge),
@@ -139,6 +167,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ...accounts.map(
             (account) => Card(
               child: ListTile(
+                onTap: () => _openScreen(const BanksScreen()),
                 leading: const Icon(Icons.account_balance_rounded),
                 title: Text(account['bank_name']?.toString() ?? 'Banco'),
                 subtitle: Text(
@@ -163,6 +192,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ...recentExpenses.map(
             (expense) => Card(
               child: ListTile(
+                onTap: () => _openScreen(const ExpensesScreen()),
                 leading: const Icon(Icons.payments_rounded),
                 title: Text(expense['description']?.toString() ?? 'Sin descripcion'),
                 subtitle: Text(
@@ -185,27 +215,41 @@ class _StatCard extends StatelessWidget {
     required this.title,
     required this.value,
     required this.icon,
+    required this.onTap,
   });
 
   final String title;
   final String value;
   final IconData icon;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 170,
-      child: Card(
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon),
               const SizedBox(height: 10),
               Text(title, style: Theme.of(context).textTheme.bodySmall),
               const SizedBox(height: 6),
-              Text(value, style: Theme.of(context).textTheme.titleMedium),
+              Text(
+                value,
+                style: Theme.of(context).textTheme.titleMedium,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Ver detalle',
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
             ],
           ),
         ),
