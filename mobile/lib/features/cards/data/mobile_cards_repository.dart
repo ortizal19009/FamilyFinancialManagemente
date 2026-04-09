@@ -71,9 +71,23 @@ class MobileCardsRepository {
     }
   }
 
+  Future<List<BankAccountSummary>> loadAccounts() async {
+    try {
+      final response = await _apiClient.get('/banks/accounts');
+      return (response as List<dynamic>)
+          .map((item) => BankAccountSummary.fromMap(Map<String, dynamic>.from(item as Map)))
+          .toList();
+    } catch (_) {
+      final cached = await _cacheStorage.getCollection('mobile_bank_accounts_cache');
+      return cached.map(BankAccountSummary.fromMap).toList();
+    }
+  }
+
   Future<void> createCard({
     required int bankId,
     required String cardName,
+    int? bankAccountId,
+    String? bankAccountName,
     String? owner,
     String? lastFourDigits,
     String cardType = 'Débito',
@@ -89,7 +103,9 @@ class MobileCardsRepository {
     final localCard = CardSummary(
       id: _nextLocalId(),
       bankId: bankId,
+      bankAccountId: bankAccountId,
       bankName: matchedBank['name'] as String? ?? '',
+      bankAccountName: bankAccountName,
       cardName: cardName,
       owner: owner,
       cardType: cardType,
@@ -107,6 +123,7 @@ class MobileCardsRepository {
       path: '/cards_loans/cards',
       payload: {
         'bank_id': bankId,
+        'bank_account_id': bankAccountId,
         'card_name': cardName,
         'owner': owner,
         'last_four_digits': lastFourDigits,
@@ -135,6 +152,8 @@ class MobileCardsRepository {
     required int cardId,
     required int bankId,
     required String cardName,
+    int? bankAccountId,
+    String? bankAccountName,
     String? owner,
     String? lastFourDigits,
     String cardType = 'Débito',
@@ -154,7 +173,9 @@ class MobileCardsRepository {
               ? {
                   ...item,
                   'bank_id': bankId,
+                  'bank_account_id': bankAccountId,
                   'bank_name': matchedBank['name'] as String? ?? '',
+                  'bank_account_name': bankAccountName,
                   'card_name': cardName,
                   'owner': owner,
                   'last_four_digits': lastFourDigits,
@@ -170,6 +191,7 @@ class MobileCardsRepository {
     }
     await _apiClient.put('/cards_loans/cards/$cardId', {
       'bank_id': bankId,
+      'bank_account_id': bankAccountId,
       'card_name': cardName,
       'owner': owner,
       'last_four_digits': lastFourDigits,

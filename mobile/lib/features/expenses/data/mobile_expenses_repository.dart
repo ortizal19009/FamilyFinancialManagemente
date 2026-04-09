@@ -225,12 +225,15 @@ class MobileExpensesRepository {
 
     if ((paymentMethod == 'Tarjeta Crédito' || paymentMethod == 'Tarjeta Débito') && cardId != null) {
       final cachedCards = await _cacheStorage.getCollection(_cardsCacheKey);
+      int? linkedBankAccountId;
+      double? linkedBankAccountBalance;
       final updatedCards = cachedCards
           .map((item) {
             if (item['id'] != cardId) {
               return item;
             }
             final cardType = item['card_type'] as String? ?? '';
+            linkedBankAccountId = item['bank_account_id'] as int?;
             if (paymentMethod == 'Tarjeta Crédito' || cardType == 'Crédito') {
               final creditLimit = (item['credit_limit'] as num?)?.toDouble() ?? 0;
               final currentDebt = ((item['current_debt'] as num?)?.toDouble() ?? 0) + (amount * sign);
@@ -246,7 +249,37 @@ class MobileExpensesRepository {
             };
           })
           .toList();
-      await _cacheStorage.saveCollection(_cardsCacheKey, updatedCards);
+      if (paymentMethod == 'Tarjeta Débito' && linkedBankAccountId != null) {
+        final cachedAccounts = await _cacheStorage.getCollection(_accountsCacheKey);
+        final updatedAccounts = cachedAccounts
+            .map((item) {
+              if (item['id'] != linkedBankAccountId) {
+                return item;
+              }
+              linkedBankAccountBalance =
+                  ((item['current_balance'] as num?)?.toDouble() ?? 0) - (amount * sign);
+              return {
+                ...item,
+                'current_balance': linkedBankAccountBalance,
+              };
+            })
+            .toList();
+        await _cacheStorage.saveCollection(_accountsCacheKey, updatedAccounts);
+      }
+      final normalizedCards = updatedCards
+          .map((item) => item['id'] == cardId &&
+                  paymentMethod == 'Tarjeta Débito' &&
+                  linkedBankAccountBalance != null
+              ? {
+                  ...item,
+                  'available_balance': linkedBankAccountBalance,
+                }
+              : item)
+          .toList();
+      await _cacheStorage.saveCollection(_cardsCacheKey, normalizedCards);
+      if (paymentMethod != 'Tarjeta Débito' || linkedBankAccountId == null) {
+        return;
+      }
     }
   }
 

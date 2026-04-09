@@ -70,7 +70,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
 
   Future<void> _openPlanDialog({Map<String, dynamic>? plan}) async {
     if (_categories.isEmpty) {
-      setState(() => _message = 'No hay categorias disponibles');
+      setState(() => _message = 'No hay categorías disponibles');
       return;
     }
 
@@ -90,7 +90,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
               children: [
                 DropdownButtonFormField<int>(
                   initialValue: selectedCategory,
-                  decoration: const InputDecoration(labelText: 'Categoria'),
+                  decoration: const InputDecoration(labelText: 'Categoría'),
                   items: _categories
                       .map((category) => DropdownMenuItem(value: category.id, child: Text(category.name)))
                       .toList(),
@@ -152,7 +152,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Nueva categoria'),
+          title: const Text('Nueva categoría'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -160,7 +160,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
               children: [
                 TextField(
                   controller: nameController,
-                  decoration: const InputDecoration(labelText: 'Nombre de la categoria'),
+                  decoration: const InputDecoration(labelText: 'Nombre de la categoría'),
                 ),
                 const SizedBox(height: 16),
                 Text('Galeria de iconos', style: Theme.of(context).textTheme.titleMedium),
@@ -226,7 +226,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
 
     final name = nameController.text.trim();
     if (name.isEmpty) {
-      setState(() => _message = 'El nombre de la categoria es obligatorio');
+      setState(() => _message = 'El nombre de la categoría es obligatorio');
       return;
     }
 
@@ -237,7 +237,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
       );
       await _loadData();
       if (!mounted) return;
-      setState(() => _message = 'Categoria creada correctamente');
+      setState(() => _message = 'Categoría creada correctamente');
     } catch (error) {
       setState(() => _message = error.toString().replaceFirst('Exception: ', ''));
     }
@@ -249,7 +249,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Eliminar presupuesto'),
         content: Text(
-          'Se eliminara el presupuesto de "${plan['category_name'] ?? 'esta categoria'}".',
+          'Se eliminara el presupuesto de "${plan['category_name'] ?? 'esta categoría'}".',
         ),
         actions: [
           TextButton(
@@ -337,7 +337,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
                         child: OutlinedButton.icon(
                           onPressed: _openCategoryDialog,
                           icon: const Icon(Icons.playlist_add_rounded),
-                          label: const Text('Crear categoria'),
+                          label: const Text('Crear categoría'),
                         ),
                       ),
                       if (_message != null) ...[
@@ -359,7 +359,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
               ..._plans.map(
                 (plan) => Card(
                   child: ListTile(
-                    title: Text(plan['category_name']?.toString() ?? 'Sin categoria'),
+                    title: Text(plan['category_name']?.toString() ?? 'Sin categoría'),
                     subtitle: Text(
                       'Planificado: \$${((plan['planned_amount'] as num?) ?? 0).toStringAsFixed(2)} · Ejecutado: \$${((plan['actual_amount'] as num?) ?? 0).toStringAsFixed(2)}',
                     ),

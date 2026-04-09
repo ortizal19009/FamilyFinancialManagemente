@@ -183,6 +183,8 @@ def update_account(account_id):
 
         for expense in account.expenses:
             expense.bank_account_id = duplicate.id
+        for card in account.cards:
+            card.bank_account_id = duplicate.id
 
         db.session.delete(account)
         db.session.commit()
@@ -211,6 +213,10 @@ def delete_account(account_id):
     if account.expenses:
         return jsonify({
             "msg": "No se puede cerrar la cuenta porque tiene gastos asociados"
+        }), 400
+    if account.cards:
+        return jsonify({
+            "msg": "No se puede cerrar la cuenta porque tiene tarjetas debito asociadas"
         }), 400
 
     db.session.delete(account)

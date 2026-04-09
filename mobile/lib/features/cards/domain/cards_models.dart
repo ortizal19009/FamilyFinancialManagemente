@@ -2,7 +2,9 @@ class CardSummary {
   const CardSummary({
     required this.id,
     required this.bankId,
+    required this.bankAccountId,
     required this.bankName,
+    required this.bankAccountName,
     required this.cardName,
     required this.owner,
     required this.cardType,
@@ -14,7 +16,9 @@ class CardSummary {
 
   final int id;
   final int bankId;
+  final int? bankAccountId;
   final String bankName;
+  final String? bankAccountName;
   final String cardName;
   final String? owner;
   final String? cardType;
@@ -27,7 +31,9 @@ class CardSummary {
     return {
       'id': id,
       'bank_id': bankId,
+      'bank_account_id': bankAccountId,
       'bank_name': bankName,
+      'bank_account_name': bankAccountName,
       'card_name': cardName,
       'owner': owner,
       'card_type': cardType,
@@ -42,7 +48,9 @@ class CardSummary {
     return CardSummary(
       id: map['id'] as int? ?? 0,
       bankId: map['bank_id'] as int? ?? 0,
+      bankAccountId: map['bank_account_id'] as int?,
       bankName: map['bank_name'] as String? ?? '',
+      bankAccountName: map['bank_account_name'] as String?,
       cardName: map['card_name'] as String? ?? '',
       owner: map['owner'] as String?,
       cardType: map['card_type'] as String?,

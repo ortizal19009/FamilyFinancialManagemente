@@ -55,6 +55,26 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     super.dispose();
   }
 
+  CardSummary? _findCardById(int? cardId) {
+    if (cardId == null) {
+      return null;
+    }
+    for (final card in _cards) {
+      if (card.id == cardId) {
+        return card;
+      }
+    }
+    return null;
+  }
+
+  String _cardOptionLabel(CardSummary card) {
+    final linkedAccount = (card.bankAccountName ?? '').trim();
+    if ((card.cardType ?? '') == 'Débito' && linkedAccount.isNotEmpty) {
+      return '${card.cardName} · ${card.bankName} · $linkedAccount';
+    }
+    return '${card.cardName} · ${card.bankName}';
+  }
+
   String _formatDate(DateTime date) {
     return '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
@@ -221,6 +241,14 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                     ),
                     if (paymentMethod == 'Tarjeta Crédito' || paymentMethod == 'Tarjeta Débito') ...[
                       const SizedBox(height: 12),
+                      if (paymentMethod == 'Tarjeta Débito')
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            'La tarjeta débito usa el saldo de su cuenta bancaria asociada.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
                       DropdownButtonFormField<int>(
                         initialValue: selectedCardId,
                         decoration: const InputDecoration(labelText: 'Tarjeta'),
@@ -228,7 +256,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                             .map(
                               (card) => DropdownMenuItem(
                                 value: card.id,
-                                child: Text('${card.cardName} · ${card.bankName}'),
+                                child: Text(_cardOptionLabel(card)),
                               ),
                             )
                             .toList(),
@@ -237,9 +265,24 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                     ],
                     if (paymentMethod == 'Banca Móvil') ...[
                       const SizedBox(height: 12),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Text(
+                          'Banca móvil también usa una cuenta bancaria. Selecciona la cuenta desde la que salió el dinero.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                      if (_accounts.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            'Para pagar con banca móvil primero crea una cuenta en Bancos > Cuentas.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
                       DropdownButtonFormField<int>(
                         initialValue: selectedAccountId,
-                        decoration: const InputDecoration(labelText: 'Cuenta'),
+                        decoration: const InputDecoration(labelText: 'Cuenta bancaria'),
                         items: _accounts
                             .map(
                               (account) => DropdownMenuItem(
@@ -263,7 +306,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                               flex: 3,
                               child: DropdownButtonFormField<int>(
                                 initialValue: item.categoryId,
-                                decoration: InputDecoration(labelText: 'Rubro ${index + 1}'),
+                                decoration: InputDecoration(labelText: 'Categoría ${index + 1}'),
                                 items: _categories
                                     .map(
                                       (category) => DropdownMenuItem(
@@ -326,6 +369,11 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
 
     setState(() => _saving = true);
     try {
+      final selectedCard = _findCardById(selectedCardId);
+      if (paymentMethod == 'Tarjeta Débito' && (selectedCard?.bankAccountId == null)) {
+        setState(() => _message = 'La tarjeta débito debe tener una cuenta bancaria asociada.');
+        return;
+      }
       await _repository.updateExpense(
         expenseId: expense.serverId!,
         description: descriptionController.text.trim(),
@@ -407,7 +455,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Nuevo rubro'),
+          title: const Text('Nueva categoría'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -415,7 +463,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
               children: [
                 TextField(
                   controller: nameController,
-                  decoration: const InputDecoration(labelText: 'Nombre del rubro'),
+                  decoration: const InputDecoration(labelText: 'Nombre de la categoría'),
                 ),
                 const SizedBox(height: 16),
                 Text('Galeria de iconos', style: Theme.of(context).textTheme.titleMedium),
@@ -481,7 +529,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
 
     final name = nameController.text.trim();
     if (name.isEmpty) {
-      setState(() => _message = 'El nombre del rubro es obligatorio');
+      setState(() => _message = 'El nombre de la categoría es obligatorio');
       return null;
     }
 
@@ -492,7 +540,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         icon: selectedIcon,
       );
       await _loadData();
-      _message = 'Rubro creado correctamente';
+      _message = 'Categoría creada correctamente';
       return category;
     } catch (error) {
       setState(() => _message = error.toString().replaceFirst('Exception: ', ''));
@@ -588,6 +636,14 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                     ),
                     if (usesCard()) ...[
                       const SizedBox(height: 12),
+                      if (paymentMethod == 'Tarjeta Débito')
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            'La tarjeta débito usa directamente la cuenta bancaria que tenga asociada.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
                       DropdownButtonFormField<int>(
                         initialValue: selectedCardId,
                         decoration: const InputDecoration(labelText: 'Tarjeta utilizada'),
@@ -595,7 +651,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                             .map(
                               (card) => DropdownMenuItem(
                                 value: card.id,
-                                child: Text('${card.cardName} · ${card.bankName}'),
+                                child: Text(_cardOptionLabel(card)),
                               ),
                             )
                             .toList(),
@@ -604,9 +660,24 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                     ],
                     if (usesAccount()) ...[
                       const SizedBox(height: 12),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Text(
+                          'Banca móvil también usa una cuenta bancaria. Selecciona la cuenta desde la que salió el dinero.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                      if (_accounts.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            'Para pagar con banca móvil primero crea una cuenta en Bancos > Cuentas.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
                       DropdownButtonFormField<int>(
                         initialValue: selectedAccountId,
-                        decoration: const InputDecoration(labelText: 'Cuenta utilizada'),
+                        decoration: const InputDecoration(labelText: 'Cuenta bancaria utilizada'),
                         items: _accounts
                             .map(
                               (account) => DropdownMenuItem(
@@ -622,7 +693,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                     Row(
                       children: [
                         Expanded(
-                          child: Text('Rubros', style: Theme.of(context).textTheme.titleMedium),
+                          child: Text('Categorías', style: Theme.of(context).textTheme.titleMedium),
                         ),
                         TextButton.icon(
                           onPressed: () {
@@ -649,7 +720,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                           });
                         },
                         icon: const Icon(Icons.playlist_add_rounded),
-                        label: const Text('Crear rubro'),
+                        label: const Text('Crear categoría'),
                       ),
                     ),
                     if (_categories.isEmpty)
@@ -657,7 +728,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                         padding: EdgeInsets.only(bottom: 12),
                         child: Align(
                           alignment: Alignment.centerLeft,
-                          child: Text('Todavia no tienes rubros. Crea uno para comenzar.'),
+                          child: Text('Todavía no tienes categorías. Crea una para comenzar.'),
                         ),
                       ),
                     ...draftItems.asMap().entries.map((entry) {
@@ -671,7 +742,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                               flex: 3,
                               child: DropdownButtonFormField<int>(
                                 initialValue: item.categoryId,
-                                decoration: InputDecoration(labelText: 'Rubro ${index + 1}'),
+                                decoration: InputDecoration(labelText: 'Categoría ${index + 1}'),
                                 items: _categories
                                     .map(
                                       (category) => DropdownMenuItem(
@@ -782,7 +853,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         .toList();
 
     if (description.isEmpty || expenseDate.isEmpty || items.isEmpty) {
-      setState(() => _message = 'Completa descripcion, fecha y al menos un rubro');
+      setState(() => _message = 'Completa descripción, fecha y al menos una categoría');
       for (final item in draftItems) {
         item.dispose();
       }
@@ -790,7 +861,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     }
 
     if (items.any((item) => (item['amount'] as double) <= 0)) {
-      setState(() => _message = 'Cada rubro debe tener un monto mayor a 0');
+      setState(() => _message = 'Cada categoría debe tener un monto mayor a 0');
       for (final item in draftItems) {
         item.dispose();
       }
@@ -805,8 +876,17 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       return;
     }
 
+    final selectedCard = _findCardById(selectedCardId);
+    if (paymentMethod == 'Tarjeta Débito' && (selectedCard?.bankAccountId == null)) {
+      setState(() => _message = 'La tarjeta débito debe tener una cuenta bancaria asociada.');
+      for (final item in draftItems) {
+        item.dispose();
+      }
+      return;
+    }
+
     if (usesAccount() && selectedAccountId == null) {
-      setState(() => _message = 'Selecciona la cuenta usada en el gasto');
+      setState(() => _message = 'Selecciona una cuenta bancaria. Si solo creaste el banco, falta crear la cuenta.');
       for (final item in draftItems) {
         item.dispose();
       }
@@ -1080,7 +1160,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                       TextField(
                         controller: _searchController,
                         decoration: const InputDecoration(
-                          labelText: 'Buscar por fecha, tipo, rubro, descripcion o monto',
+                          labelText: 'Buscar por fecha, tipo, categoría, descripción o monto',
                           prefixIcon: Icon(Icons.search_rounded),
                         ),
                         onChanged: (_) => setState(() {}),
@@ -1141,7 +1221,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                             columns: const [
                               DataColumn(label: Text('Fecha')),
                               DataColumn(label: Text('Descripcion')),
-                              DataColumn(label: Text('Rubro')),
+                              DataColumn(label: Text('Categoría')),
                               DataColumn(label: Text('Tipo')),
                               DataColumn(label: Text('Monto')),
                               DataColumn(label: Text('Estado')),

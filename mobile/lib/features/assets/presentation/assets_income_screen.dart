@@ -264,6 +264,14 @@ class _AssetsIncomeScreenState extends State<AssetsIncomeScreen> {
                 ),
                 if (selectedDestinationType == 'bank_account') ...[
                   const SizedBox(height: 12),
+                  if (accountChoices.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Text(
+                        'Primero crea una cuenta en Bancos > Cuentas para que este ingreso afecte tu saldo disponible.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
                   DropdownButtonFormField<int?>(
                     initialValue: selectedBankAccountId,
                     decoration: const InputDecoration(labelText: 'Cuenta'),
@@ -314,7 +322,7 @@ class _AssetsIncomeScreenState extends State<AssetsIncomeScreen> {
 
     try {
       if (selectedDestinationType == 'bank_account' && selectedBankAccountId == null) {
-        setState(() => _message = 'Selecciona la cuenta donde ingreso el dinero');
+        setState(() => _message = 'Selecciona una cuenta bancaria. Si solo creaste el banco, falta crear la cuenta.');
         return;
       }
       BankAccountSummary? selectedAccount;

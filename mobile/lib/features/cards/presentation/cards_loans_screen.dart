@@ -20,6 +20,7 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
   List<CardSummary> _cards = [];
   List<LoanSummary> _loans = [];
   List<BankSummary> _banks = [];
+  List<BankAccountSummary> _accounts = [];
   List<String> _ownerOptions = [];
   bool _loading = true;
   bool _loadedFromCache = false;
@@ -41,9 +42,13 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
   Future<void> _loadData() async {
     final snapshot = await _repository.loadSnapshot();
     List<BankSummary> banks = _banks;
+    List<BankAccountSummary> accounts = _accounts;
     List<String> ownerOptions = _ownerOptions;
     try {
       banks = await _repository.loadBanks();
+    } catch (_) {}
+    try {
+      accounts = await _repository.loadAccounts();
     } catch (_) {}
     try {
       final members = await _familyRepository.loadMembers();
@@ -60,6 +65,7 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
       _cards = snapshot.cards;
       _loans = snapshot.loans;
       _banks = banks;
+      _accounts = accounts;
       _ownerOptions = ownerOptions;
       _loadedFromCache = snapshot.loadedFromCache;
       _loading = false;
@@ -112,12 +118,29 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
     );
 
     int selectedBankId = card?.bankId ?? bankOptions.first.id;
+    int? selectedBankAccountId = card?.bankAccountId;
     String selectedType = card?.cardType ?? 'Débito';
     final ownerChoices = {
       ..._ownerOptions,
       if ((card?.owner ?? '').trim().isNotEmpty) card!.owner!.trim(),
     }.toList()
       ..sort();
+
+    void syncDebitAvailableBalance() {
+      if (selectedType != 'Débito') {
+        return;
+      }
+      BankAccountSummary? matchedAccount;
+      for (final account in _accounts) {
+        if (account.id == selectedBankAccountId) {
+          matchedAccount = account;
+          break;
+        }
+      }
+      if (matchedAccount != null) {
+        availableController.text = matchedAccount.currentBalance.toStringAsFixed(2);
+      }
+    }
 
     final result = await showDialog<bool>(
       context: context,
@@ -143,7 +166,16 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
                           .toList(),
                       onChanged: (value) {
                         if (value == null) return;
-                        setDialogState(() => selectedBankId = value);
+                        setDialogState(() {
+                          selectedBankId = value;
+                          if (selectedType == 'Débito' &&
+                              !_accounts.any(
+                                (account) => account.id == selectedBankAccountId && account.bankId == selectedBankId,
+                              )) {
+                            selectedBankAccountId = null;
+                          }
+                          syncDebitAvailableBalance();
+                        });
                       },
                     ),
                     const SizedBox(height: 12),
@@ -185,9 +217,48 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
                       ],
                       onChanged: (value) {
                         if (value == null) return;
-                        setDialogState(() => selectedType = value);
+                        setDialogState(() {
+                          selectedType = value;
+                          if (selectedType != 'Débito') {
+                            selectedBankAccountId = null;
+                          } else {
+                            syncDebitAvailableBalance();
+                          }
+                        });
                       },
                     ),
+                    if (selectedType == 'Débito') ...[
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Text(
+                          'La tarjeta debito usara directamente el saldo de la cuenta bancaria asociada.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<int?>(
+                        initialValue: selectedBankAccountId,
+                        decoration: const InputDecoration(labelText: 'Cuenta bancaria asociada'),
+                        items: [
+                          const DropdownMenuItem<int?>(
+                            value: null,
+                            child: Text('Selecciona una cuenta'),
+                          ),
+                          ..._accounts
+                              .where((account) => account.bankId == selectedBankId)
+                              .map(
+                                (account) => DropdownMenuItem<int?>(
+                                  value: account.id,
+                                  child: Text('${account.bankName} · ${account.accountNumber}'),
+                                ),
+                              ),
+                        ],
+                        onChanged: (value) => setDialogState(() {
+                          selectedBankAccountId = value;
+                          syncDebitAvailableBalance();
+                        }),
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     TextField(
                       controller: limitController,
@@ -203,6 +274,7 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
                     const SizedBox(height: 12),
                     TextField(
                       controller: availableController,
+                      readOnly: selectedType == 'Débito',
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       decoration: const InputDecoration(labelText: 'Saldo disponible'),
                     ),
@@ -234,6 +306,20 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
       setState(() => _message = 'El nombre de la tarjeta es obligatorio');
       return;
     }
+    if (selectedType == 'Débito' && selectedBankAccountId == null) {
+      setState(() => _message = 'Selecciona la cuenta bancaria de la tarjeta debito');
+      return;
+    }
+
+    BankAccountSummary? selectedAccount;
+    if (selectedBankAccountId != null) {
+      for (final account in _accounts) {
+        if (account.id == selectedBankAccountId) {
+          selectedAccount = account;
+          break;
+        }
+      }
+    }
 
     setState(() => _saving = true);
     try {
@@ -241,6 +327,10 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
         await _repository.createCard(
           bankId: selectedBankId,
           cardName: cardName,
+          bankAccountId: selectedBankAccountId,
+          bankAccountName: selectedAccount == null
+              ? null
+              : '${selectedAccount.bankName} - ${selectedAccount.accountNumber}',
           owner: selectedOwner,
           lastFourDigits: lastDigitsController.text.trim(),
           cardType: selectedType,
@@ -254,6 +344,10 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
           cardId: card.id,
           bankId: selectedBankId,
           cardName: cardName,
+          bankAccountId: selectedBankAccountId,
+          bankAccountName: selectedAccount == null
+              ? null
+              : '${selectedAccount.bankName} - ${selectedAccount.accountNumber}',
           owner: selectedOwner,
           lastFourDigits: lastDigitsController.text.trim(),
           cardType: selectedType,
@@ -587,7 +681,7 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
                                 leading: const Icon(Icons.credit_card_rounded),
                                 title: Text('${card.cardName} · ${card.bankName}'),
                                 subtitle: Text(
-                                  '${card.cardType ?? 'Tarjeta'} · ${card.owner ?? 'Sin propietario'} · **** ${card.lastFourDigits ?? '----'}',
+                                  '${card.cardType ?? 'Tarjeta'} · ${card.owner ?? 'Sin propietario'} · **** ${card.lastFourDigits ?? '----'}${card.cardType == 'Débito' && (card.bankAccountName ?? '').isNotEmpty ? ' · ${card.bankAccountName}' : ''}',
                                 ),
                                 trailing: SizedBox(
                                   width: 96,
@@ -632,10 +726,10 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
                             leading: const Icon(Icons.request_quote_rounded),
                             title: Text(loan.description),
                             subtitle: Text(
-                              '${loan.bankName} · ${loan.totalInstallments - loan.pendingInstallments}/${loan.totalInstallments} cuotas pagadas',
+                              '${loan.bankName} · ${loan.pendingInstallments}/${loan.totalInstallments} cuotas pendientes',
                             ),
                             trailing: SizedBox(
-                              width: 164,
+                              width: 188,
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -644,7 +738,9 @@ class _CardsLoansScreenState extends State<CardsLoansScreen> {
                                       mainAxisAlignment: MainAxisAlignment.center,
                                       crossAxisAlignment: CrossAxisAlignment.end,
                                       children: [
-                                        Text('\$${loan.initialAmount.toStringAsFixed(2)}'),
+                                        Text(
+                                          '\$${(loan.pendingInstallments * loan.monthlyPayment).toStringAsFixed(2)}',
+                                        ),
                                         Text(
                                           'Mensual \$${loan.monthlyPayment.toStringAsFixed(2)}',
                                           style: Theme.of(context).textTheme.bodySmall,

@@ -269,13 +269,28 @@ def _apply_payment_effect(payment_method, total_amount, card_id=None, bank_accou
     if payment_method == 'Tarjeta Débito' and card_id:
         card = db.session.get(Card, card_id)
         if card:
-            card.available_balance -= sign * amount_delta
+            linked_account = db.session.get(BankAccount, card.bank_account_id) if card.bank_account_id else None
+            if linked_account:
+                linked_account.current_balance -= sign * amount_delta
+                card.available_balance = Decimal(str(linked_account.current_balance or 0))
+            else:
+                card.available_balance -= sign * amount_delta
         return
 
     if payment_method == 'Banca Móvil' and bank_account_id:
         account = db.session.get(BankAccount, bank_account_id)
         if account:
             account.current_balance -= sign * amount_delta
+
+
+def _resolve_linked_bank_account(payment_method, card_id=None, bank_account_id=None):
+    if bank_account_id:
+        return bank_account_id
+    if payment_method == 'Tarjeta Débito' and card_id:
+        card = db.session.get(Card, card_id)
+        if card and card.bank_account_id:
+            return card.bank_account_id
+    return None
 
 
 def _load_group_expenses(base_expense):
@@ -374,7 +389,7 @@ def create_category():
     icon = (data.get('icon') or '').strip() or None
 
     if not name:
-        return jsonify({"msg": "El nombre del rubro es obligatorio"}), 400
+        return jsonify({"msg": "El nombre de la categoría es obligatorio"}), 400
 
     existing = Category.query.filter(func.lower(Category.name) == name.lower()).first()
     if existing:
@@ -490,7 +505,11 @@ def create_expense():
             amount=amount_value,
             payment_method=data['payment_method'],
             card_id=data.get('card_id'),
-            bank_account_id=data.get('bank_account_id'),
+            bank_account_id=_resolve_linked_bank_account(
+                data['payment_method'],
+                card_id=data.get('card_id'),
+                bank_account_id=data.get('bank_account_id'),
+            ),
             expense_date=expense_date,
             description=data.get('description')
         )
@@ -574,7 +593,11 @@ def update_expense(expense_id):
             amount=amount_value,
             payment_method=data['payment_method'],
             card_id=data.get('card_id'),
-            bank_account_id=data.get('bank_account_id'),
+            bank_account_id=_resolve_linked_bank_account(
+                data['payment_method'],
+                card_id=data.get('card_id'),
+                bank_account_id=data.get('bank_account_id'),
+            ),
             expense_date=expense_date,
             description=data.get('description'),
         )

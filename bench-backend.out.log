@@ -1,0 +1,32 @@
+GET /health -> 200 [0.09 ms]
+INFO:     127.0.0.1:61334 - "GET /health HTTP/1.1" 200 OK
+GET /health -> 200 [0.13 ms]
+INFO:     127.0.0.1:61334 - "GET /health HTTP/1.1" 200 OK
+GET /health -> 200 [0.07 ms]
+INFO:     127.0.0.1:61334 - "GET /health HTTP/1.1" 200 OK
+GET /health -> 200 [0.06 ms]
+INFO:     127.0.0.1:61334 - "GET /health HTTP/1.1" 200 OK
+GET /health -> 200 [0.09 ms]
+INFO:     127.0.0.1:61334 - "GET /health HTTP/1.1" 200 OK
+GET /health -> 200 [0.09 ms]
+INFO:     127.0.0.1:61334 - "GET /health HTTP/1.1" 200 OK
+POST /api/auth/login -> 200 [316.15 ms]
+INFO:     127.0.0.1:61334 - "POST /api/auth/login HTTP/1.1" 200 OK
+POST /api/auth/login -> 200 [256.71 ms]
+INFO:     127.0.0.1:61334 - "POST /api/auth/login HTTP/1.1" 200 OK
+POST /api/auth/login -> 200 [256.56 ms]
+INFO:     127.0.0.1:61334 - "POST /api/auth/login HTTP/1.1" 200 OK
+POST /api/auth/login -> 200 [272.10 ms]
+INFO:     127.0.0.1:61334 - "POST /api/auth/login HTTP/1.1" 200 OK
+POST /api/auth/login -> 200 [260.91 ms]
+INFO:     127.0.0.1:61334 - "POST /api/auth/login HTTP/1.1" 200 OK
+GET /api/dashboard/summary -> 200 [119.60 ms]
+INFO:     127.0.0.1:61334 - "GET /api/dashboard/summary HTTP/1.1" 200 OK
+GET /api/dashboard/summary -> 200 [24.38 ms]
+INFO:     127.0.0.1:61334 - "GET /api/dashboard/summary HTTP/1.1" 200 OK
+GET /api/dashboard/summary -> 200 [12.14 ms]
+INFO:     127.0.0.1:61334 - "GET /api/dashboard/summary HTTP/1.1" 200 OK
+GET /api/dashboard/summary -> 200 [14.18 ms]
+INFO:     127.0.0.1:61334 - "GET /api/dashboard/summary HTTP/1.1" 200 OK
+GET /api/dashboard/summary -> 200 [14.89 ms]
+INFO:     127.0.0.1:61334 - "GET /api/dashboard/summary HTTP/1.1" 200 OK

@@ -106,6 +106,33 @@ class DashboardRepository {
                 'current_balance': item.currentBalance,
               })
           .toList(),
+      'cards': cards
+          .map((item) => {
+                'id': item.id,
+                'bank_name': item.bankName,
+                'card_name': item.cardName,
+                'card_type': item.cardType,
+                'owner': item.owner,
+                'last_four_digits': item.lastFourDigits,
+                'current_debt': item.currentDebt,
+                'available_balance': item.availableBalance,
+              })
+          .toList(),
+      'loans': loansCache
+          .map((item) => {
+                'id': item['id'],
+                'bank_name': item['bank_name'] as String? ?? 'Sin banco',
+                'description': item['description'] as String? ?? '',
+                'owner': item['owner'] as String?,
+                'initial_amount': (item['initial_amount'] as num?)?.toDouble() ?? 0,
+                'pending_installments': item['pending_installments'] as int? ?? 0,
+                'total_installments': item['total_installments'] as int? ?? 0,
+                'monthly_payment': (item['monthly_payment'] as num?)?.toDouble() ?? 0,
+                'pending_debt': ((item['pending_installments'] as num?)?.toDouble() ?? 0) *
+                    ((item['monthly_payment'] as num?)?.toDouble() ?? 0),
+                'start_date': item['start_date'] as String?,
+              })
+          .toList(),
       'recentExpenses': recentExpenses
           .take(5)
           .map((item) => {
@@ -133,6 +160,8 @@ class DashboardRepository {
         'totalAssets': localStats['totalAssets'] ?? remoteStats['totalAssets'] ?? 0,
       },
       'accounts': local['accounts'] ?? remote['accounts'] ?? const [],
+      'cards': (local['cards'] as List?)?.isNotEmpty == true ? local['cards'] : (remote['cards'] ?? const []),
+      'loans': (local['loans'] as List?)?.isNotEmpty == true ? local['loans'] : (remote['loans'] ?? const []),
       'recentExpenses': (local['recentExpenses'] as List?)?.isNotEmpty == true
           ? local['recentExpenses']
           : (remote['recentExpenses'] ?? const []),
@@ -142,9 +171,13 @@ class DashboardRepository {
   bool _hasUsefulData(Map<String, dynamic> summary) {
     final stats = Map<String, dynamic>.from((summary['stats'] as Map?) ?? {});
     final accounts = (summary['accounts'] as List?) ?? const [];
+    final cards = (summary['cards'] as List?) ?? const [];
+    final loans = (summary['loans'] as List?) ?? const [];
     final recentExpenses = (summary['recentExpenses'] as List?) ?? const [];
     return stats.values.any((value) => (value as num?) != null && value != 0) ||
         accounts.isNotEmpty ||
+        cards.isNotEmpty ||
+        loans.isNotEmpty ||
         recentExpenses.isNotEmpty;
   }
 }

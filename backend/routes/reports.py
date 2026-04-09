@@ -134,7 +134,11 @@ def _income_query_for_user(user):
 
 
 def _card_query_for_user(user):
-    query = Card.query.options(joinedload(Card.bank), joinedload(Card.user))
+    query = Card.query.options(
+        joinedload(Card.bank),
+        joinedload(Card.bank_account).joinedload(BankAccount.bank),
+        joinedload(Card.user),
+    )
     if user.role != 'admin':
         query = query.filter(Card.user_id == user.id)
     return query
@@ -328,6 +332,11 @@ def _build_accounts_report(user, filters):
         'cards': [
             {
                 'bank_name': card.bank.name if card.bank else None,
+                'bank_account_name': (
+                    f"{card.bank_account.bank.name} - {card.bank_account.account_number}"
+                    if card.bank_account and card.bank_account.bank
+                    else None
+                ),
                 'user_name': card.user.full_name if card.user else None,
                 'card_name': card.card_name,
                 'owner': card.owner,
@@ -618,7 +627,7 @@ def _payload_to_pdf_lines(report_type, payload):
         lines.append('Gastos recientes:')
         for item in payload.get('recent_expenses') or []:
             lines.append(
-                f'- {item["date"]} | {item.get("category") or "Sin categoria"} | '
+                f'- {item["date"]} | {item.get("category") or "Sin categoría"} | '
                 f'{item.get("description") or "Sin descripcion"} | {_format_money(item["amount"])}'
             )
 
@@ -655,6 +664,7 @@ def _payload_to_pdf_lines(report_type, payload):
         for card in payload.get('cards') or []:
             lines.append(
                 f'- {card.get("card_name") or ""} | {card.get("card_type") or ""} | '
+                f'{card.get("bank_account_name") or ""} | '
                 f'deuda {_format_money(card.get("current_debt"))} | disponible {_format_money(card.get("available_balance"))}'
             )
         lines.append('')
@@ -672,7 +682,7 @@ def _payload_to_pdf_lines(report_type, payload):
             f'- Registros: {summary.get("records", 0)}',
             f'- Total: {_format_money(summary.get("total_amount"))}',
             '',
-            'Totales por categoria:',
+            'Totales por categoría:',
         ])
         for item in payload.get('totals_by_category') or []:
             lines.append(f'- {item.get("category")}: {_format_money(item.get("amount"))}')
@@ -680,7 +690,7 @@ def _payload_to_pdf_lines(report_type, payload):
         lines.append('Detalle de gastos:')
         for item in payload.get('items') or []:
             lines.append(
-                f'- {item["date"]} | {item.get("category") or "Sin categoria"} | '
+                f'- {item["date"]} | {item.get("category") or "Sin categoría"} | '
                 f'{item.get("description") or "Sin descripcion"} | {_format_money(item.get("amount"))}'
             )
 

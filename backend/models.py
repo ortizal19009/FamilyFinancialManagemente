@@ -77,6 +77,7 @@ class Card(db.Model):
     __tablename__ = 'cards'
     id = db.Column(db.Integer, primary_key=True)
     bank_id = db.Column(db.Integer, db.ForeignKey('banks.id', ondelete='CASCADE'))
+    bank_account_id = db.Column(db.Integer, db.ForeignKey('bank_accounts.id', ondelete='SET NULL'))
     user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'))
     card_name = db.Column(db.String(100))
     owner = db.Column(db.String(100))
@@ -88,6 +89,7 @@ class Card(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     bank = db.relationship('Bank', backref='cards', lazy=True)
+    bank_account = db.relationship('BankAccount', backref='cards', lazy=True)
     user = db.relationship('User', backref='cards', lazy=True)
 
 class Loan(db.Model):

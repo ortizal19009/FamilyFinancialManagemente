@@ -5,9 +5,9 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy.orm import joinedload
 
 try:
-    from backend.models import db, Card, Loan, Bank, User
+    from backend.models import db, Card, Loan, Bank, BankAccount, User
 except ModuleNotFoundError:
-    from models import db, Card, Loan, Bank, User
+    from models import db, Card, Loan, Bank, BankAccount, User
 
 cards_loans_bp = Blueprint('cards_loans', __name__)
 
@@ -25,6 +25,23 @@ def _to_float(value, default=0.0):
         return default
     return float(value)
 
+
+def _resolve_card_account(bank_id, card_type, bank_account_id, available_balance):
+    normalized_card_type = (card_type or 'Débito').strip()
+    account_id = _to_int(bank_account_id, 'bank_account_id') if bank_account_id not in [None, ''] else None
+
+    if normalized_card_type == 'Débito':
+        if not account_id:
+            raise ValueError('bank_account_id is required for debit cards')
+        account = db.session.get(BankAccount, account_id)
+        if not account:
+            raise ValueError('Bank account not found')
+        if account.bank_id != bank_id:
+            raise ValueError('Debit card bank account must belong to the selected bank')
+        return account_id, float(account.current_balance or 0)
+
+    return None, _to_float(available_balance)
+
 # --- Rutas para Tarjetas ---
 
 @cards_loans_bp.route('/cards', methods=['GET'])
@@ -34,14 +51,19 @@ def get_cards():
     user = db.session.get(User, user_id)
     
     if user.role == 'admin':
-        cards = Card.query.options(joinedload(Card.bank), joinedload(Card.user)).all()
+        cards = Card.query.options(joinedload(Card.bank), joinedload(Card.bank_account).joinedload(BankAccount.bank), joinedload(Card.user)).all()
     else:
-        cards = Card.query.options(joinedload(Card.bank), joinedload(Card.user)).filter_by(user_id=user_id).all()
+        cards = Card.query.options(joinedload(Card.bank), joinedload(Card.bank_account).joinedload(BankAccount.bank), joinedload(Card.user)).filter_by(user_id=user_id).all()
         
     return jsonify([{
         "id": c.id,
         "bank_id": c.bank_id,
+        "bank_account_id": c.bank_account_id,
         "bank_name": c.bank.name if c.bank else None,
+        "bank_account_name": (
+            f"{c.bank_account.bank.name if c.bank_account and c.bank_account.bank else 'Banco'} - {c.bank_account.account_number}"
+            if c.bank_account else None
+        ),
         "user_name": c.user.full_name if c.user else None,
         "card_name": c.card_name,
         "owner": c.owner,
@@ -62,11 +84,18 @@ def create_card():
 
     try:
         bank_id = _to_int(data.get('bank_id'), 'bank_id', required=True)
+        bank_account_id, available_balance = _resolve_card_account(
+            bank_id,
+            data.get('card_type', 'Débito'),
+            data.get('bank_account_id'),
+            data.get('available_balance'),
+        )
     except (TypeError, ValueError) as exc:
         return jsonify({"msg": str(exc)}), 400
     
     new_card = Card(
         bank_id=bank_id,
+        bank_account_id=bank_account_id,
         user_id=user_id, # Usar el ID del usuario autenticado
         card_name=data['card_name'],
         owner=data.get('owner'),
@@ -74,7 +103,7 @@ def create_card():
         card_type=data.get('card_type', 'Débito'),
         credit_limit=_to_float(data.get('credit_limit')),
         current_debt=_to_float(data.get('current_debt')),
-        available_balance=_to_float(data.get('available_balance'))
+        available_balance=available_balance
     )
     db.session.add(new_card)
     db.session.commit()
@@ -100,6 +129,12 @@ def update_card(card_id):
 
     try:
         card.bank_id = _to_int(data.get('bank_id'), 'bank_id', required=True)
+        card.bank_account_id, card.available_balance = _resolve_card_account(
+            card.bank_id,
+            data.get('card_type', 'Débito'),
+            data.get('bank_account_id'),
+            data.get('available_balance'),
+        )
     except (TypeError, ValueError) as exc:
         return jsonify({"msg": str(exc)}), 400
     card.card_name = data['card_name']
@@ -108,7 +143,6 @@ def update_card(card_id):
     card.card_type = data.get('card_type', 'Débito')
     card.credit_limit = _to_float(data.get('credit_limit'))
     card.current_debt = _to_float(data.get('current_debt'))
-    card.available_balance = _to_float(data.get('available_balance'))
     db.session.commit()
 
     return jsonify({"msg": "Card updated successfully"}), 200

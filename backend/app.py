@@ -74,6 +74,14 @@ def ensure_income_schema():
         db.session.execute(text('ALTER TABLE income ADD COLUMN bank_account_id INTEGER REFERENCES bank_accounts(id) ON DELETE SET NULL'))
         db.session.commit()
 
+def ensure_cards_schema():
+    inspector = inspect(db.engine)
+    columns = {column['name'] for column in inspector.get_columns('cards')}
+
+    if 'bank_account_id' not in columns:
+        db.session.execute(text('ALTER TABLE cards ADD COLUMN bank_account_id INTEGER REFERENCES bank_accounts(id) ON DELETE SET NULL'))
+        db.session.commit()
+
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
@@ -155,6 +163,7 @@ def create_app(config_class=Config):
     with app.app_context():
         ensure_family_schema()
         ensure_income_schema()
+        ensure_cards_schema()
         ensure_default_admin(app)
 
     return app
