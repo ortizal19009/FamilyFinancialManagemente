@@ -70,37 +70,73 @@ class FamilyRepository {
     required String relationship,
     String? linkedUserEmail,
   }) async {
-    if (id < 0) {
-      final cached = await _cacheStorage.getCollection(_membersCacheKey);
-      final updated = cached
-          .map((item) => item['id'] == id
-              ? {
-                  ...item,
-                  'name': name,
-                  'relationship': relationship,
-                  'linked_user_email': linkedUserEmail,
-                }
-              : item)
-          .toList();
-      await _cacheStorage.saveCollection(_membersCacheKey, updated);
-      return;
-    }
-    await _apiClient.put('/family/$id', {
-      'name': name,
-      'relationship': relationship,
-      'linked_user_email': linkedUserEmail,
-    });
-  }
+    final cached = await _cacheStorage.getCollection(_membersCacheKey);
+    final updated = cached
+        .map((item) => item['id'] == id
+            ? {
+                ...item,
+                'name': name,
+                'relationship': relationship,
+                'linked_user_email': linkedUserEmail,
+              }
+            : item)
+        .toList();
+    await _cacheStorage.saveCollection(_membersCacheKey, updated);
 
-  Future<void> deleteMember(int id) async {
     if (id < 0) {
-      final cached = await _cacheStorage.getCollection(_membersCacheKey);
-      await _cacheStorage.saveCollection(
-        _membersCacheKey,
-        cached.where((item) => item['id'] != id).toList(),
+      await AppServices.syncService.enqueue(
+        OfflineOperation(
+          id: 'family-$id',
+          module: 'family',
+          method: 'POST',
+          path: '/family/',
+          payload: {
+            'name': name,
+            'relationship': relationship,
+            'linked_user_email': linkedUserEmail,
+          },
+          createdAt: DateTime.now(),
+        ),
       );
       return;
     }
-    await _apiClient.delete('/family/$id');
+    await AppServices.syncService.enqueue(
+      OfflineOperation(
+        id: 'family-update-$id',
+        module: 'family',
+        method: 'PUT',
+        path: '/family/$id',
+        payload: {
+          'name': name,
+          'relationship': relationship,
+          'linked_user_email': linkedUserEmail,
+        },
+        createdAt: DateTime.now(),
+      ),
+    );
+  }
+
+  Future<void> deleteMember(int id) async {
+    final cached = await _cacheStorage.getCollection(_membersCacheKey);
+    await _cacheStorage.saveCollection(
+      _membersCacheKey,
+      cached.where((item) => item['id'] != id).toList(),
+    );
+
+    if (id < 0) {
+      await AppServices.syncService.removeQueuedOperation('family-$id');
+      return;
+    }
+    await AppServices.syncService.removeQueuedOperation('family-update-$id');
+    await AppServices.syncService.enqueue(
+      OfflineOperation(
+        id: 'family-delete-$id',
+        module: 'family',
+        method: 'DELETE',
+        path: '/family/$id',
+        payload: const {},
+        createdAt: DateTime.now(),
+      ),
+    );
   }
 }

@@ -20,6 +20,8 @@ class _BackendSettingsScreenState extends State<BackendSettingsScreen> {
   final _backupService = BackupService();
   bool _loading = true;
   bool _checkingConnection = false;
+  bool _uploadingServerInfo = false;
+  bool _downloadingServerInfo = false;
   bool _exporting = false;
   bool _importing = false;
   String? _message;
@@ -147,6 +149,65 @@ class _BackendSettingsScreenState extends State<BackendSettingsScreen> {
     } finally {
       if (mounted) {
         setState(() => _importing = false);
+      }
+    }
+  }
+
+  Future<void> _uploadInfo() async {
+    setState(() {
+      _uploadingServerInfo = true;
+      _message = 'Enviando cambios pendientes al servidor...';
+    });
+
+    try {
+      await AppServices.syncService.syncPendingOperations();
+      await AppServices.syncService.refreshState();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _message = 'Upload completado. Los cambios pendientes se enviaron al servidor.';
+      });
+      AppServices.requestDataRefresh();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _message = error.toString().replaceFirst('Exception: ', '');
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _uploadingServerInfo = false);
+      }
+    }
+  }
+
+  Future<void> _downloadInfo() async {
+    setState(() {
+      _downloadingServerInfo = true;
+      _message = 'Descargando informacion mas reciente del servidor...';
+    });
+
+    try {
+      await AppServices.syncService.refreshState();
+      if (!mounted) {
+        return;
+      }
+      AppServices.requestDataRefresh();
+      setState(() {
+        _message = 'Download completado. La app recargara los datos desde el servidor.';
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _message = error.toString().replaceFirst('Exception: ', '');
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _downloadingServerInfo = false);
       }
     }
   }
@@ -303,6 +364,46 @@ class _BackendSettingsScreenState extends State<BackendSettingsScreen> {
                                     : 'Comprobar conectividad con el servidor',
                               ),
                             ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: FilledButton.icon(
+                                  onPressed: _uploadingServerInfo || _downloadingServerInfo
+                                      ? null
+                                      : _uploadInfo,
+                                  icon: _uploadingServerInfo
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        )
+                                      : const Icon(Icons.cloud_upload_rounded),
+                                  label: Text(
+                                    _uploadingServerInfo ? 'Uploading...' : 'Upload info',
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _uploadingServerInfo || _downloadingServerInfo
+                                      ? null
+                                      : _downloadInfo,
+                                  icon: _downloadingServerInfo
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        )
+                                      : const Icon(Icons.cloud_download_rounded),
+                                  label: Text(
+                                    _downloadingServerInfo ? 'Downloading...' : 'Download info',
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),

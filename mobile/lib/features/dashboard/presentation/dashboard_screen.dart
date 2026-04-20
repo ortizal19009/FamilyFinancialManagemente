@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/app_services.dart';
 import '../data/dashboard_repository.dart';
 import '../../expenses/presentation/expenses_screen.dart';
 
@@ -51,6 +52,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await _loadData();
   }
 
+  String _buildLastSyncMessage(BuildContext context) {
+    final status = AppServices.syncService.status;
+    final baseMessage = status.lastMessage ?? 'Aun no hay sincronizacion registrada';
+    final lastSyncedAt = status.lastSyncedAt;
+    if (lastSyncedAt == null) {
+      return baseMessage;
+    }
+
+    final now = DateTime.now();
+    final isToday = now.year == lastSyncedAt.year &&
+        now.month == lastSyncedAt.month &&
+        now.day == lastSyncedAt.day;
+    final timeLabel = TimeOfDay.fromDateTime(lastSyncedAt).format(context);
+    if (isToday) {
+      return '$baseMessage · hoy $timeLabel';
+    }
+    final dateLabel =
+        '${lastSyncedAt.day.toString().padLeft(2, '0')}/${lastSyncedAt.month.toString().padLeft(2, '0')}';
+    return '$baseMessage · $dateLabel $timeLabel';
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -86,6 +108,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       0,
       (sum, item) => sum + ((item['pending_debt'] as num?)?.toDouble() ?? 0),
     );
+    final investmentsCurrentValue =
+        ((stats['investmentsCurrentValue'] as num?) ?? 0).toDouble();
+    final investmentsInvestedAmount =
+        ((stats['investmentsInvestedAmount'] as num?) ?? 0).toDouble();
+    final investmentsProfitLoss = investmentsCurrentValue - investmentsInvestedAmount;
 
     return RefreshIndicator(
       onRefresh: _loadData,
@@ -95,32 +122,49 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Row(
+              child: Column(
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Registro rapido', style: Theme.of(context).textTheme.titleMedium),
-                        const SizedBox(height: 6),
-                        const Text('Usa el microfono para anotar un gasto por voz directamente.'),
-                      ],
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Registro rapido', style: Theme.of(context).textTheme.titleMedium),
+                            const SizedBox(height: 6),
+                            const Text('Usa el microfono para anotar un gasto por voz directamente.'),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      FilledButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const ExpensesScreen(
+                                autoStartVoice: true,
+                                showScaffold: true,
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.mic_rounded),
+                        label: const Text('Audio'),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  FilledButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const ExpensesScreen(
-                            autoStartVoice: true,
-                            showScaffold: true,
-                          ),
+                  const SizedBox(height: 12),
+                  AnimatedBuilder(
+                    animation: AppServices.syncService,
+                    builder: (context, _) {
+                      return Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          _buildLastSyncMessage(context),
+                          style: Theme.of(context).textTheme.bodySmall,
                         ),
                       );
                     },
-                    icon: const Icon(Icons.mic_rounded),
-                    label: const Text('Audio'),
                   ),
                 ],
               ),
@@ -171,9 +215,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     icon: Icons.home_work_rounded,
                     onTap: () => _openSection('assets'),
                   ),
+                  _StatCard(
+                    title: 'Inversiones',
+                    value: '\$${investmentsCurrentValue.toStringAsFixed(2)}',
+                    icon: Icons.trending_up_rounded,
+                    onTap: () => _openSection('investments'),
+                  ),
                 ],
               );
             },
+          ),
+          const SizedBox(height: 20),
+          Text('Inversiones', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 12),
+          Card(
+            child: ListTile(
+              onTap: () => _openSection('investments'),
+              leading: const Icon(Icons.trending_up_rounded),
+              title: const Text('Resumen de inversiones'),
+              subtitle: Text(
+                'Invertido: \$${investmentsInvestedAmount.toStringAsFixed(2)} · Valor actual: \$${investmentsCurrentValue.toStringAsFixed(2)}',
+              ),
+              trailing: Text(
+                '\$${investmentsProfitLoss.toStringAsFixed(2)}',
+                style: TextStyle(
+                  color: investmentsProfitLoss >= 0 ? Colors.green : Colors.red,
+                ),
+              ),
+            ),
           ),
           const SizedBox(height: 20),
           Text('Saldos de tus cuentas', style: Theme.of(context).textTheme.titleLarge),

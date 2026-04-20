@@ -112,42 +112,75 @@ class MobileAssetsRepository {
     String? description,
     String? purchaseDate,
   }) async {
+    final cached = await _cacheStorage.getCollection(_assetsCacheKey);
+    final updated = cached
+        .map((item) => item['id'] == id
+            ? {
+                ...item,
+                'name': name,
+                'value': value,
+                'owner': owner,
+                'description': description,
+                'purchase_date': purchaseDate,
+              }
+            : item)
+        .toList();
+    await _cacheStorage.saveCollection(_assetsCacheKey, updated);
+
     if (id < 0) {
-      final cached = await _cacheStorage.getCollection(_assetsCacheKey);
-      final updated = cached
-          .map((item) => item['id'] == id
-              ? {
-                  ...item,
-                  'name': name,
-                  'value': value,
-                  'owner': owner,
-                  'description': description,
-                  'purchase_date': purchaseDate,
-                }
-              : item)
-          .toList();
-      await _cacheStorage.saveCollection(_assetsCacheKey, updated);
+      await AppServices.syncService.enqueue(OfflineOperation(
+        id: 'asset-$id',
+        module: 'assets',
+        method: 'POST',
+        path: '/assets_income/assets',
+        payload: {
+          'name': name,
+          'value': value,
+          'owner': owner,
+          'description': description,
+          'purchase_date': purchaseDate,
+        },
+        createdAt: DateTime.now(),
+      ));
       return;
     }
-    await _apiClient.put('/assets_income/assets/$id', {
-      'name': name,
-      'value': value,
-      'owner': owner,
-      'description': description,
-      'purchase_date': purchaseDate,
-    });
+
+    await AppServices.syncService.enqueue(OfflineOperation(
+      id: 'asset-update-$id',
+      module: 'assets',
+      method: 'PUT',
+      path: '/assets_income/assets/$id',
+      payload: {
+        'name': name,
+        'value': value,
+        'owner': owner,
+        'description': description,
+        'purchase_date': purchaseDate,
+      },
+      createdAt: DateTime.now(),
+    ));
   }
 
   Future<void> deleteAsset(int id) async {
+    final cached = await _cacheStorage.getCollection(_assetsCacheKey);
+    await _cacheStorage.saveCollection(
+      _assetsCacheKey,
+      cached.where((item) => item['id'] != id).toList(),
+    );
+
     if (id < 0) {
-      final cached = await _cacheStorage.getCollection(_assetsCacheKey);
-      await _cacheStorage.saveCollection(
-        _assetsCacheKey,
-        cached.where((item) => item['id'] != id).toList(),
-      );
+      await AppServices.syncService.removeQueuedOperation('asset-$id');
       return;
     }
-    await _apiClient.delete('/assets_income/assets/$id');
+    await AppServices.syncService.removeQueuedOperation('asset-update-$id');
+    await AppServices.syncService.enqueue(OfflineOperation(
+      id: 'asset-delete-$id',
+      module: 'assets',
+      method: 'DELETE',
+      path: '/assets_income/assets/$id',
+      payload: const {},
+      createdAt: DateTime.now(),
+    ));
   }
 
   Future<void> createIncome({
@@ -208,75 +241,109 @@ class MobileAssetsRepository {
     String? bankAccountName,
     String? description,
   }) async {
-    if (id < 0) {
-      final cached = await _cacheStorage.getCollection(_incomeCacheKey);
-      final previous = cached.cast<Map<String, dynamic>?>().firstWhere(
-            (item) => item?['id'] == id,
-            orElse: () => null,
-          );
-      if (previous != null) {
-        await _applyLocalIncomeEffect(
-          destinationType: previous['destination_type'] as String? ?? 'cash',
-          amount: (previous['amount'] as num?)?.toDouble() ?? 0,
-          bankAccountId: previous['bank_account_id'] as int?,
-          sign: -1,
+    final cached = await _cacheStorage.getCollection(_incomeCacheKey);
+    final previous = cached.cast<Map<String, dynamic>?>().firstWhere(
+          (item) => item?['id'] == id,
+          orElse: () => null,
         );
-      }
-      final updated = cached
-          .map((item) => item['id'] == id
-              ? {
-                  ...item,
-                  'amount': amount,
-                  'source': source,
-                  'income_date': incomeDate,
-                  'destination_type': destinationType,
-                  'bank_account_id': bankAccountId,
-                  'bank_account_name': bankAccountName,
-                  'description': description,
-                }
-              : item)
-          .toList();
-      await _cacheStorage.saveCollection(_incomeCacheKey, updated);
+    if (previous != null) {
       await _applyLocalIncomeEffect(
-        destinationType: destinationType,
-        amount: amount,
-        bankAccountId: bankAccountId,
-        sign: 1,
+        destinationType: previous['destination_type'] as String? ?? 'cash',
+        amount: (previous['amount'] as num?)?.toDouble() ?? 0,
+        bankAccountId: previous['bank_account_id'] as int?,
+        sign: -1,
       );
+    }
+    final updated = cached
+        .map((item) => item['id'] == id
+            ? {
+                ...item,
+                'amount': amount,
+                'source': source,
+                'income_date': incomeDate,
+                'destination_type': destinationType,
+                'bank_account_id': bankAccountId,
+                'bank_account_name': bankAccountName,
+                'description': description,
+              }
+            : item)
+        .toList();
+    await _cacheStorage.saveCollection(_incomeCacheKey, updated);
+    await _applyLocalIncomeEffect(
+      destinationType: destinationType,
+      amount: amount,
+      bankAccountId: bankAccountId,
+      sign: 1,
+    );
+
+    if (id < 0) {
+      await AppServices.syncService.enqueue(OfflineOperation(
+        id: 'income-$id',
+        module: 'assets',
+        method: 'POST',
+        path: '/assets_income/income',
+        payload: {
+          'amount': amount,
+          'source': source,
+          'income_date': incomeDate,
+          'destination_type': destinationType,
+          'bank_account_id': bankAccountId,
+          'description': description,
+        },
+        createdAt: DateTime.now(),
+      ));
       return;
     }
-    await _apiClient.put('/assets_income/income/$id', {
-      'amount': amount,
-      'source': source,
-      'income_date': incomeDate,
-      'destination_type': destinationType,
-      'bank_account_id': bankAccountId,
-      'description': description,
-    });
+
+    await AppServices.syncService.enqueue(OfflineOperation(
+      id: 'income-update-$id',
+      module: 'assets',
+      method: 'PUT',
+      path: '/assets_income/income/$id',
+      payload: {
+        'amount': amount,
+        'source': source,
+        'income_date': incomeDate,
+        'destination_type': destinationType,
+        'bank_account_id': bankAccountId,
+        'description': description,
+      },
+      createdAt: DateTime.now(),
+    ));
   }
 
   Future<void> deleteIncome(int id) async {
-    if (id < 0) {
-      final cached = await _cacheStorage.getCollection(_incomeCacheKey);
-      final previous = cached.cast<Map<String, dynamic>?>().firstWhere(
-            (item) => item?['id'] == id,
-            orElse: () => null,
-          );
-      if (previous != null) {
-        await _applyLocalIncomeEffect(
-          destinationType: previous['destination_type'] as String? ?? 'cash',
-          amount: (previous['amount'] as num?)?.toDouble() ?? 0,
-          bankAccountId: previous['bank_account_id'] as int?,
-          sign: -1,
+    final cached = await _cacheStorage.getCollection(_incomeCacheKey);
+    final previous = cached.cast<Map<String, dynamic>?>().firstWhere(
+          (item) => item?['id'] == id,
+          orElse: () => null,
         );
-      }
-      await _cacheStorage.saveCollection(
-        _incomeCacheKey,
-        cached.where((item) => item['id'] != id).toList(),
+    if (previous != null) {
+      await _applyLocalIncomeEffect(
+        destinationType: previous['destination_type'] as String? ?? 'cash',
+        amount: (previous['amount'] as num?)?.toDouble() ?? 0,
+        bankAccountId: previous['bank_account_id'] as int?,
+        sign: -1,
       );
+    }
+    await _cacheStorage.saveCollection(
+      _incomeCacheKey,
+      cached.where((item) => item['id'] != id).toList(),
+    );
+
+    if (id < 0) {
+      await AppServices.syncService.removeQueuedOperation('income-$id');
       return;
     }
-    await _apiClient.delete('/assets_income/income/$id');
+    await AppServices.syncService.removeQueuedOperation('income-update-$id');
+    await AppServices.syncService.enqueue(OfflineOperation(
+      id: 'income-delete-$id',
+      module: 'assets',
+      method: 'DELETE',
+      path: '/assets_income/income/$id',
+      payload: const {},
+      createdAt: DateTime.now(),
+    ));
   }
 
   Future<void> _applyLocalIncomeEffect({

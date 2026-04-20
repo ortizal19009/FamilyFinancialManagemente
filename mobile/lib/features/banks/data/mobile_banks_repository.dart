@@ -108,36 +108,67 @@ class MobileBanksRepository {
     required String name,
     String? description,
   }) async {
+    final cached = await _cacheStorage.getCollection(_banksCacheKey);
+    final updated = cached
+        .map((item) => item['id'] == bankId
+            ? {
+                ...item,
+                'name': name,
+                'description': description,
+              }
+            : item)
+        .toList();
+    await _cacheStorage.saveCollection(_banksCacheKey, updated);
+
     if (bankId < 0) {
-      final cached = await _cacheStorage.getCollection(_banksCacheKey);
-      final updated = cached
-          .map((item) => item['id'] == bankId
-              ? {
-                  ...item,
-                  'name': name,
-                  'description': description,
-                }
-              : item)
-          .toList();
-      await _cacheStorage.saveCollection(_banksCacheKey, updated);
+      await AppServices.syncService.enqueue(OfflineOperation(
+        id: 'bank-$bankId',
+        module: 'banks',
+        method: 'POST',
+        path: '/banks/',
+        payload: {
+          'name': name,
+          'description': description,
+        },
+        createdAt: DateTime.now(),
+      ));
       return;
     }
-    await _apiClient.put('/banks/$bankId', {
-      'name': name,
-      'description': description,
-    });
+
+    await AppServices.syncService.enqueue(OfflineOperation(
+      id: 'bank-update-$bankId',
+      module: 'banks',
+      method: 'PUT',
+      path: '/banks/$bankId',
+      payload: {
+        'name': name,
+        'description': description,
+      },
+      createdAt: DateTime.now(),
+    ));
   }
 
   Future<void> deleteBank(int bankId) async {
+    final cached = await _cacheStorage.getCollection(_banksCacheKey);
+    await _cacheStorage.saveCollection(
+      _banksCacheKey,
+      cached.where((item) => item['id'] != bankId).toList(),
+    );
+
     if (bankId < 0) {
-      final cached = await _cacheStorage.getCollection(_banksCacheKey);
-      await _cacheStorage.saveCollection(
-        _banksCacheKey,
-        cached.where((item) => item['id'] != bankId).toList(),
-      );
+      await AppServices.syncService.removeQueuedOperation('bank-$bankId');
       return;
     }
-    await _apiClient.delete('/banks/$bankId');
+
+    await AppServices.syncService.removeQueuedOperation('bank-update-$bankId');
+    await AppServices.syncService.enqueue(OfflineOperation(
+      id: 'bank-delete-$bankId',
+      module: 'banks',
+      method: 'DELETE',
+      path: '/banks/$bankId',
+      payload: const {},
+      createdAt: DateTime.now(),
+    ));
   }
 
   Future<void> createAccount({
@@ -190,47 +221,81 @@ class MobileBanksRepository {
     String? owner,
     double currentBalance = 0,
   }) async {
+    final banks = await _cacheStorage.getCollection(_banksCacheKey);
+    final matchedBank = banks.firstWhere(
+      (item) => item['id'] == bankId,
+      orElse: () => <String, dynamic>{},
+    );
+    final cached = await _cacheStorage.getCollection(_accountsCacheKey);
+    final updated = cached
+        .map((item) => item['id'] == accountId
+            ? {
+                ...item,
+                'bank_id': bankId,
+                'bank_name': matchedBank['name'] as String? ?? '',
+                'account_number': accountNumber,
+                'account_type': accountType,
+                'owner': owner,
+                'current_balance': currentBalance,
+              }
+            : item)
+        .toList();
+    await _cacheStorage.saveCollection(_accountsCacheKey, updated);
+
     if (accountId < 0) {
-      final banks = await _cacheStorage.getCollection(_banksCacheKey);
-      final matchedBank = banks.firstWhere(
-        (item) => item['id'] == bankId,
-        orElse: () => <String, dynamic>{},
-      );
-      final cached = await _cacheStorage.getCollection(_accountsCacheKey);
-      final updated = cached
-          .map((item) => item['id'] == accountId
-              ? {
-                  ...item,
-                  'bank_id': bankId,
-                  'bank_name': matchedBank['name'] as String? ?? '',
-                  'account_number': accountNumber,
-                  'account_type': accountType,
-                  'owner': owner,
-                  'current_balance': currentBalance,
-                }
-              : item)
-          .toList();
-      await _cacheStorage.saveCollection(_accountsCacheKey, updated);
+      await AppServices.syncService.enqueue(OfflineOperation(
+        id: 'bank-account-$accountId',
+        module: 'banks',
+        method: 'POST',
+        path: '/banks/accounts',
+        payload: {
+          'bank_id': bankId,
+          'account_number': accountNumber,
+          'account_type': accountType,
+          'owner': owner,
+          'current_balance': currentBalance,
+        },
+        createdAt: DateTime.now(),
+      ));
       return;
     }
-    await _apiClient.put('/banks/accounts/$accountId', {
-      'bank_id': bankId,
-      'account_number': accountNumber,
-      'account_type': accountType,
-      'owner': owner,
-      'current_balance': currentBalance,
-    });
+
+    await AppServices.syncService.enqueue(OfflineOperation(
+      id: 'bank-account-update-$accountId',
+      module: 'banks',
+      method: 'PUT',
+      path: '/banks/accounts/$accountId',
+      payload: {
+        'bank_id': bankId,
+        'account_number': accountNumber,
+        'account_type': accountType,
+        'owner': owner,
+        'current_balance': currentBalance,
+      },
+      createdAt: DateTime.now(),
+    ));
   }
 
   Future<void> deleteAccount(int accountId) async {
+    final cached = await _cacheStorage.getCollection(_accountsCacheKey);
+    await _cacheStorage.saveCollection(
+      _accountsCacheKey,
+      cached.where((item) => item['id'] != accountId).toList(),
+    );
+
     if (accountId < 0) {
-      final cached = await _cacheStorage.getCollection(_accountsCacheKey);
-      await _cacheStorage.saveCollection(
-        _accountsCacheKey,
-        cached.where((item) => item['id'] != accountId).toList(),
-      );
+      await AppServices.syncService.removeQueuedOperation('bank-account-$accountId');
       return;
     }
-    await _apiClient.delete('/banks/accounts/$accountId');
+
+    await AppServices.syncService.removeQueuedOperation('bank-account-update-$accountId');
+    await AppServices.syncService.enqueue(OfflineOperation(
+      id: 'bank-account-delete-$accountId',
+      module: 'banks',
+      method: 'DELETE',
+      path: '/banks/accounts/$accountId',
+      payload: const {},
+      createdAt: DateTime.now(),
+    ));
   }
 }

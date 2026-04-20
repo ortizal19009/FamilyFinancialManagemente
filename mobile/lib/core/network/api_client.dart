@@ -18,7 +18,7 @@ class ApiClient {
 
     if (auth) {
       final token = await _tokenStorage.getToken();
-      if (token != null && token.isNotEmpty) {
+      if (token != null && token.isNotEmpty && !token.startsWith('local-')) {
         headers['Authorization'] = 'Bearer $token';
       }
     }

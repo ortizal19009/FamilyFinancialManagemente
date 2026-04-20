@@ -33,11 +33,17 @@ class SyncService extends ChangeNotifier {
   Future<void> initialize() async {
     if (_initialized) {
       await refreshState();
+      if (_status.isOnline && _status.pendingCount > 0) {
+        await syncPendingOperations();
+      }
       return;
     }
     _initialized = true;
 
     await refreshState();
+    if (_status.isOnline && _status.pendingCount > 0) {
+      await syncPendingOperations();
+    }
 
     _connectivitySubscription = _reachabilityService.connectivityStream.listen((_) async {
       final canReach = await _reachabilityService.canReachBackend();
@@ -47,6 +53,9 @@ class SyncService extends ChangeNotifier {
 
       _status = _status.copyWith(isOnline: canReach);
       notifyListeners();
+      if (canReach) {
+        await syncPendingOperations();
+      }
     });
   }
 
@@ -56,21 +65,46 @@ class SyncService extends ChangeNotifier {
     _status = _status.copyWith(
       isOnline: online,
       pendingCount: queue.length,
+      lastMessage: online ? _status.lastMessage : 'Sin conexion con el servidor',
     );
     notifyListeners();
   }
 
   Future<void> enqueue(OfflineOperation operation) async {
     final queue = await _queueStorage.getQueue();
-    queue.add(operation);
-    await _queueStorage.saveQueue(queue);
-    _status = _status.copyWith(
-      pendingCount: queue.length,
-    );
-    notifyListeners();
+    final existingIndex = queue.indexWhere((item) => item.id == operation.id);
+    if (existingIndex >= 0) {
+      queue[existingIndex] = operation;
+    } else {
+      queue.add(operation);
+    }
+    await _persistQueue(queue, trySyncWhenOnline: true);
   }
 
   Future<List<OfflineOperation>> getPendingOperations() => _queueStorage.getQueue();
+
+  Future<void> removeQueuedOperation(String operationId) async {
+    final queue = await _queueStorage.getQueue();
+    final updated = queue.where((item) => item.id != operationId).toList();
+    if (updated.length == queue.length) {
+      return;
+    }
+    await _persistQueue(updated);
+  }
+
+  Future<void> removeQueuedOperations(Iterable<String> operationIds) async {
+    final ids = operationIds.toSet();
+    if (ids.isEmpty) {
+      return;
+    }
+
+    final queue = await _queueStorage.getQueue();
+    final updated = queue.where((item) => !ids.contains(item.id)).toList();
+    if (updated.length == queue.length) {
+      return;
+    }
+    await _persistQueue(updated);
+  }
 
   Future<void> syncPendingOperations() async {
     if (_status.isSyncing) {
@@ -81,6 +115,7 @@ class SyncService extends ChangeNotifier {
     if (!online) {
       _status = _status.copyWith(
         isOnline: false,
+        lastMessage: 'Sin conexion con el servidor',
       );
       notifyListeners();
       return;
@@ -91,6 +126,8 @@ class SyncService extends ChangeNotifier {
       _status = _status.copyWith(
         isOnline: true,
         pendingCount: 0,
+        lastMessage: 'Datos al dia con el servidor',
+        lastSyncedAt: DateTime.now(),
       );
       notifyListeners();
       return;
@@ -124,6 +161,10 @@ class SyncService extends ChangeNotifier {
     _status = _status.copyWith(
       isSyncing: false,
       pendingCount: remaining.length,
+      lastMessage: remaining.isEmpty
+          ? 'Sincronizacion completada'
+          : 'Sincronizacion parcial: ${remaining.length} pendiente(s)',
+      lastSyncedAt: DateTime.now(),
     );
     notifyListeners();
   }
@@ -143,8 +184,36 @@ class SyncService extends ChangeNotifier {
           }
         }
         return;
+      case 'PUT':
+        await _apiClient.put(operation.path, operation.payload);
+        return;
+      case 'DELETE':
+        await _apiClient.delete(operation.path);
+        return;
       default:
         throw Exception('Metodo no soportado en sync: ${operation.method}');
+    }
+  }
+
+  Future<void> _persistQueue(
+    List<OfflineOperation> queue, {
+    bool trySyncWhenOnline = false,
+  }) async {
+    await _queueStorage.saveQueue(queue);
+    _status = _status.copyWith(
+      pendingCount: queue.length,
+    );
+    notifyListeners();
+
+    if (!trySyncWhenOnline) {
+      return;
+    }
+
+    final online = await _reachabilityService.canReachBackend();
+    if (online) {
+      _status = _status.copyWith(isOnline: true);
+      notifyListeners();
+      await syncPendingOperations();
     }
   }
 

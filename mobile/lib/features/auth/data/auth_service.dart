@@ -2,6 +2,7 @@ import '../../../core/network/api_client.dart';
 import '../../../core/offline/offline_operation.dart';
 import '../../../core/storage/token_storage.dart';
 import '../../../core/app_services.dart';
+import '../../../core/offline/backend_reachability_service.dart';
 import '../domain/user_session.dart';
 import 'local_auth_storage.dart';
 
@@ -10,14 +11,17 @@ class AuthService {
     ApiClient? apiClient,
     TokenStorage? tokenStorage,
     LocalAuthStorage? localAuthStorage,
+    BackendReachabilityService? reachabilityService,
   })
       : _apiClient = apiClient ?? ApiClient(tokenStorage: tokenStorage),
         _tokenStorage = tokenStorage ?? TokenStorage(),
-        _localAuthStorage = localAuthStorage ?? LocalAuthStorage();
+        _localAuthStorage = localAuthStorage ?? LocalAuthStorage(),
+        _reachabilityService = reachabilityService ?? BackendReachabilityService();
 
   final ApiClient _apiClient;
   final TokenStorage _tokenStorage;
   final LocalAuthStorage _localAuthStorage;
+  final BackendReachabilityService _reachabilityService;
 
   Future<UserSession> login({
     required String email,
@@ -27,6 +31,43 @@ class AuthService {
       email: email,
       password: password,
     );
+
+    final canReachBackend = await _reachabilityService.canReachBackend();
+    if (canReachBackend) {
+      final response = await _apiClient.post(
+        '/auth/login',
+        {
+          'email': email,
+          'password': password,
+        },
+        auth: false,
+      );
+
+      final token = response['access_token'] as String;
+      final user = response['user'] as Map<String, dynamic>;
+
+      final session = UserSession(
+        token: token,
+        fullName: user['full_name'] as String? ?? '',
+        email: user['email'] as String? ?? '',
+        role: user['role'] as String? ?? 'member',
+      );
+
+      await _localAuthStorage.saveUser(
+        LocalAuthUser(
+          fullName: session.fullName,
+          email: session.email,
+          password: password,
+          role: session.role,
+          createdAt: DateTime.now().toIso8601String(),
+          serverSynced: true,
+          lastSyncedAt: DateTime.now().toIso8601String(),
+        ),
+      );
+      await _persistSession(session);
+      return session;
+    }
+
     if (localUser != null) {
       final localSession = UserSession(
         token: 'local-${localUser.email}',
@@ -38,38 +79,7 @@ class AuthService {
       return localSession;
     }
 
-    final response = await _apiClient.post(
-      '/auth/login',
-      {
-        'email': email,
-        'password': password,
-      },
-      auth: false,
-    );
-
-    final token = response['access_token'] as String;
-    final user = response['user'] as Map<String, dynamic>;
-
-    final session = UserSession(
-      token: token,
-      fullName: user['full_name'] as String? ?? '',
-      email: user['email'] as String? ?? '',
-      role: user['role'] as String? ?? 'member',
-    );
-
-    await _localAuthStorage.saveUser(
-      LocalAuthUser(
-        fullName: session.fullName,
-        email: session.email,
-        password: password,
-        role: session.role,
-        createdAt: DateTime.now().toIso8601String(),
-        serverSynced: true,
-        lastSyncedAt: DateTime.now().toIso8601String(),
-      ),
-    );
-    await _persistSession(session);
-    return session;
+    throw Exception('No se pudo iniciar sesion. Verifica conexion o credenciales.');
   }
 
   Future<void> register({
@@ -114,6 +124,11 @@ class AuthService {
     final data = await _tokenStorage.getSession();
     final token = data['token'];
     if (token == null || token.isEmpty) {
+      return null;
+    }
+
+    if (token.startsWith('local-') && await _reachabilityService.canReachBackend()) {
+      await _tokenStorage.clear();
       return null;
     }
 

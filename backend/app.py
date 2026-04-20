@@ -15,6 +15,32 @@ except ModuleNotFoundError:
     from models import User, db
 
 
+def _sanitize_request_payload():
+    try:
+        data = request.get_json(silent=True)
+    except Exception:
+        data = None
+
+    if not isinstance(data, dict):
+        return None
+
+    sanitized = dict(data)
+    for key in ('password', 'access_token', 'refresh_token', 'token'):
+        if key in sanitized:
+            sanitized[key] = '***'
+    return sanitized
+
+
+def _auth_hint():
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header:
+        return 'none'
+    if auth_header.startswith('Bearer '):
+        token_preview = auth_header[7:19]
+        return f'Bearer {token_preview}...'
+    return auth_header[:24]
+
+
 def ensure_default_admin(app):
     if not app.config.get('DEFAULT_ADMIN_ENABLED', True):
         return
@@ -94,6 +120,7 @@ def create_app(config_class=Config):
 
     @jwt.invalid_token_loader
     def invalid_token_callback(error):
+        print(f"JWT invalid token at {request.method} {request.path}: {error} | auth={_auth_hint()}")
         return jsonify({
             'msg': 'Invalid token',
             'error': error
@@ -101,9 +128,19 @@ def create_app(config_class=Config):
 
     @jwt.unauthorized_loader
     def missing_token_callback(error):
+        print(f"JWT missing token at {request.method} {request.path}: {error}")
         return jsonify({
             'msg': 'Missing token',
             'error': error
+        }), 401
+
+    @jwt.expired_token_loader
+    def expired_token_callback(jwt_header, jwt_payload):
+        identity = jwt_payload.get('sub')
+        print(f"JWT expired at {request.method} {request.path}: sub={identity} | auth={_auth_hint()}")
+        return jsonify({
+            'msg': 'Token has expired',
+            'error': 'token_expired'
         }), 401
 
     # Registro de Blueprints (Rutas)
@@ -151,13 +188,21 @@ def create_app(config_class=Config):
     @app.before_request
     def start_request_timer():
         g.request_start_time = time.perf_counter()
+        g.request_payload_preview = _sanitize_request_payload()
 
     @app.after_request
     def log_request_duration(response):
         start_time = getattr(g, 'request_start_time', None)
         if start_time is not None:
             elapsed_ms = (time.perf_counter() - start_time) * 1000
-            print(f"{request.method} {request.path} -> {response.status_code} [{elapsed_ms:.2f} ms]")
+            base_log = f"{request.method} {request.path} -> {response.status_code} [{elapsed_ms:.2f} ms]"
+            if response.status_code >= 400:
+                response_preview = response.get_json(silent=True)
+                print(
+                    f"{base_log} | auth={_auth_hint()} | payload={getattr(g, 'request_payload_preview', None)} | response={response_preview}"
+                )
+            else:
+                print(base_log)
         return response
 
     with app.app_context():

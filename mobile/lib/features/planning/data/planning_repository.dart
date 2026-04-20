@@ -138,40 +138,81 @@ class PlanningRepository {
     required int year,
   }) async {
     final cacheKey = 'mobile_planning_${year}_$month';
+    final categories = await _cacheStorage.getCollection(_planningCategoriesCacheKey);
+    final matchedCategory = categories.firstWhere(
+      (item) => item['id'] == categoryId,
+      orElse: () => <String, dynamic>{},
+    );
+    final cached = await _cacheStorage.getCollection(cacheKey);
+    final updated = cached
+        .map((item) => item['id'] == id
+            ? {
+                ...item,
+                'category_id': categoryId,
+                'category_name': matchedCategory['name'] as String? ?? '',
+                'planned_amount': plannedAmount,
+                'month': month,
+                'year': year,
+              }
+            : item)
+        .toList();
+    await _cacheStorage.saveCollection(cacheKey, updated);
+
     if (id < 0) {
-      final categories = await _cacheStorage.getCollection(_planningCategoriesCacheKey);
-      final matchedCategory = categories.firstWhere(
-        (item) => item['id'] == categoryId,
-        orElse: () => <String, dynamic>{},
-      );
-      final cached = await _cacheStorage.getCollection(cacheKey);
-      final updated = cached
-          .map((item) => item['id'] == id
-              ? {
-                  ...item,
-                  'category_id': categoryId,
-                  'category_name': matchedCategory['name'] as String? ?? '',
-                  'planned_amount': plannedAmount,
-                  'month': month,
-                  'year': year,
-                }
-              : item)
-          .toList();
-      await _cacheStorage.saveCollection(cacheKey, updated);
+      await AppServices.syncService.enqueue(OfflineOperation(
+        id: 'plan-$id',
+        module: 'planning',
+        method: 'POST',
+        path: '/planning/',
+        payload: {
+          'category_id': categoryId,
+          'planned_amount': plannedAmount,
+          'month': month,
+          'year': year,
+        },
+        createdAt: DateTime.now(),
+      ));
       return;
     }
-    await _apiClient.put('/planning/$id', {
-      'category_id': categoryId,
-      'planned_amount': plannedAmount,
-      'month': month,
-      'year': year,
-    });
+    await AppServices.syncService.enqueue(OfflineOperation(
+      id: 'plan-update-$id',
+      module: 'planning',
+      method: 'PUT',
+      path: '/planning/$id',
+      payload: {
+        'category_id': categoryId,
+        'planned_amount': plannedAmount,
+        'month': month,
+        'year': year,
+      },
+      createdAt: DateTime.now(),
+    ));
   }
 
-  Future<void> deletePlan(int id) async {
+  Future<void> deletePlan(
+    int id, {
+    required int month,
+    required int year,
+  }) async {
+    final cacheKey = 'mobile_planning_${year}_$month';
+    final cached = await _cacheStorage.getCollection(cacheKey);
+    await _cacheStorage.saveCollection(
+      cacheKey,
+      cached.where((item) => item['id'] != id).toList(),
+    );
+
     if (id < 0) {
+      await AppServices.syncService.removeQueuedOperation('plan-$id');
       return;
     }
-    await _apiClient.delete('/planning/$id');
+    await AppServices.syncService.removeQueuedOperation('plan-update-$id');
+    await AppServices.syncService.enqueue(OfflineOperation(
+      id: 'plan-delete-$id',
+      module: 'planning',
+      method: 'DELETE',
+      path: '/planning/$id',
+      payload: const {},
+      createdAt: DateTime.now(),
+    ));
   }
 }

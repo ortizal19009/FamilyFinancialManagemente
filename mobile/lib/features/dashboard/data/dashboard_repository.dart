@@ -20,6 +20,7 @@ class DashboardRepository {
   static const _assetsCacheKey = 'mobile_assets_cache';
   static const _incomeCacheKey = 'mobile_income_cache';
   static const _expensesCacheKey = 'mobile_expenses_cache';
+  static const _investmentsCacheKey = 'mobile_investments_cache';
 
   Future<Map<String, dynamic>> loadSummary() async {
     final localSummary = await _buildLocalSummary();
@@ -49,6 +50,7 @@ class DashboardRepository {
     final assetsCache = await _cacheStorage.getCollection(_assetsCacheKey);
     final incomeCache = await _cacheStorage.getCollection(_incomeCacheKey);
     final expensesCache = await _cacheStorage.getCollection(_expensesCacheKey);
+    final investmentsCache = await _cacheStorage.getCollection(_investmentsCacheKey);
 
     final accounts = accountsCache.map(BankAccountSummary.fromMap).toList();
     final cards = cardsCache.map(CardSummary.fromMap).toList();
@@ -73,6 +75,14 @@ class DashboardRepository {
       0,
       (sum, item) => sum + ((item['value'] as num?)?.toDouble() ?? 0),
     );
+    final investmentsCurrentValue = investmentsCache.fold<double>(
+      0,
+      (sum, item) => sum + ((item['current_value'] as num?)?.toDouble() ?? 0),
+    );
+    final investmentsInvestedAmount = investmentsCache.fold<double>(
+      0,
+      (sum, item) => sum + ((item['invested_amount'] as num?)?.toDouble() ?? 0),
+    );
 
     final cardDebt = cards.fold<double>(0, (sum, item) => sum + item.currentDebt);
     final loanDebt = loansCache.fold<double>(
@@ -95,6 +105,8 @@ class DashboardRepository {
         'monthlyExpenses': monthlyExpenses,
         'monthlyIncome': monthlyIncome,
         'totalAssets': totalAssets,
+        'investmentsCurrentValue': investmentsCurrentValue,
+        'investmentsInvestedAmount': investmentsInvestedAmount,
       },
       'accounts': accounts
           .map((item) => {
@@ -158,6 +170,10 @@ class DashboardRepository {
         'monthlyExpenses': localStats['monthlyExpenses'] ?? remoteStats['monthlyExpenses'] ?? 0,
         'monthlyIncome': localStats['monthlyIncome'] ?? 0,
         'totalAssets': localStats['totalAssets'] ?? remoteStats['totalAssets'] ?? 0,
+        'investmentsCurrentValue':
+            localStats['investmentsCurrentValue'] ?? remoteStats['investmentsCurrentValue'] ?? 0,
+        'investmentsInvestedAmount':
+            localStats['investmentsInvestedAmount'] ?? remoteStats['investmentsInvestedAmount'] ?? 0,
       },
       'accounts': local['accounts'] ?? remote['accounts'] ?? const [],
       'cards': (local['cards'] as List?)?.isNotEmpty == true ? local['cards'] : (remote['cards'] ?? const []),

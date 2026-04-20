@@ -161,57 +161,94 @@ class MobileCardsRepository {
     double currentDebt = 0,
     double availableBalance = 0,
   }) async {
+    final banks = await _cacheStorage.getCollection('mobile_banks_cache');
+    final matchedBank = banks.firstWhere(
+      (item) => item['id'] == bankId,
+      orElse: () => <String, dynamic>{},
+    );
+    final cached = await _cacheStorage.getCollection(_cardsCacheKey);
+    final updated = cached
+        .map((item) => item['id'] == cardId
+            ? {
+                ...item,
+                'bank_id': bankId,
+                'bank_account_id': bankAccountId,
+                'bank_name': matchedBank['name'] as String? ?? '',
+                'bank_account_name': bankAccountName,
+                'card_name': cardName,
+                'owner': owner,
+                'last_four_digits': lastFourDigits,
+                'card_type': cardType,
+                'credit_limit': creditLimit,
+                'current_debt': currentDebt,
+                'available_balance': availableBalance,
+              }
+            : item)
+        .toList();
+    await _cacheStorage.saveCollection(_cardsCacheKey, updated);
+
     if (cardId < 0) {
-      final banks = await _cacheStorage.getCollection('mobile_banks_cache');
-      final matchedBank = banks.firstWhere(
-        (item) => item['id'] == bankId,
-        orElse: () => <String, dynamic>{},
-      );
-      final cached = await _cacheStorage.getCollection(_cardsCacheKey);
-      final updated = cached
-          .map((item) => item['id'] == cardId
-              ? {
-                  ...item,
-                  'bank_id': bankId,
-                  'bank_account_id': bankAccountId,
-                  'bank_name': matchedBank['name'] as String? ?? '',
-                  'bank_account_name': bankAccountName,
-                  'card_name': cardName,
-                  'owner': owner,
-                  'last_four_digits': lastFourDigits,
-                  'card_type': cardType,
-                  'credit_limit': creditLimit,
-                  'current_debt': currentDebt,
-                  'available_balance': availableBalance,
-                }
-              : item)
-          .toList();
-      await _cacheStorage.saveCollection(_cardsCacheKey, updated);
+      await AppServices.syncService.enqueue(OfflineOperation(
+        id: 'card-$cardId',
+        module: 'cards',
+        method: 'POST',
+        path: '/cards_loans/cards',
+        payload: {
+          'bank_id': bankId,
+          'bank_account_id': bankAccountId,
+          'card_name': cardName,
+          'owner': owner,
+          'last_four_digits': lastFourDigits,
+          'card_type': cardType,
+          'credit_limit': creditLimit,
+          'current_debt': currentDebt,
+          'available_balance': availableBalance,
+        },
+        createdAt: DateTime.now(),
+      ));
       return;
     }
-    await _apiClient.put('/cards_loans/cards/$cardId', {
-      'bank_id': bankId,
-      'bank_account_id': bankAccountId,
-      'card_name': cardName,
-      'owner': owner,
-      'last_four_digits': lastFourDigits,
-      'card_type': cardType,
-      'credit_limit': creditLimit,
-      'current_debt': currentDebt,
-      'available_balance': availableBalance,
-    });
+
+    await AppServices.syncService.enqueue(OfflineOperation(
+      id: 'card-update-$cardId',
+      module: 'cards',
+      method: 'PUT',
+      path: '/cards_loans/cards/$cardId',
+      payload: {
+        'bank_id': bankId,
+        'bank_account_id': bankAccountId,
+        'card_name': cardName,
+        'owner': owner,
+        'last_four_digits': lastFourDigits,
+        'card_type': cardType,
+        'credit_limit': creditLimit,
+        'current_debt': currentDebt,
+        'available_balance': availableBalance,
+      },
+      createdAt: DateTime.now(),
+    ));
   }
 
   Future<void> deleteCard(int cardId) async {
+    final cached = await _cacheStorage.getCollection(_cardsCacheKey);
+    await _cacheStorage.saveCollection(
+      _cardsCacheKey,
+      cached.where((item) => item['id'] != cardId).toList(),
+    );
+
     if (cardId < 0) {
-      final cached = await _cacheStorage.getCollection(_cardsCacheKey);
-      await _cacheStorage.saveCollection(
-        _cardsCacheKey,
-        cached.where((item) => item['id'] != cardId).toList(),
-      );
+      await AppServices.syncService.removeQueuedOperation('card-$cardId');
       return;
     }
-    await _apiClient.delete('/cards_loans/cards/$cardId');
+    await AppServices.syncService.removeQueuedOperation('card-update-$cardId');
+    await AppServices.syncService.enqueue(OfflineOperation(
+      id: 'card-delete-$cardId',
+      module: 'cards',
+      method: 'DELETE',
+      path: '/cards_loans/cards/$cardId',
+      payload: const {},
+      createdAt: DateTime.now(),
+    ));
   }
 
   Future<void> createLoan({
@@ -276,54 +313,91 @@ class MobileCardsRepository {
     double? interestRate,
     String? startDate,
   }) async {
+    final banks = await _cacheStorage.getCollection('mobile_banks_cache');
+    final matchedBank = banks.firstWhere(
+      (item) => item['id'] == bankId,
+      orElse: () => <String, dynamic>{},
+    );
+    final cached = await _cacheStorage.getCollection(_loansCacheKey);
+    final updated = cached
+        .map((item) => item['id'] == loanId
+            ? {
+                ...item,
+                'bank_id': bankId,
+                'bank_name': matchedBank['name'] as String? ?? 'Sin banco',
+                'description': description,
+                'owner': owner,
+                'initial_amount': initialAmount,
+                'total_installments': totalInstallments,
+                'pending_installments': pendingInstallments,
+                'monthly_payment': monthlyPayment,
+                'start_date': startDate,
+              }
+            : item)
+        .toList();
+    await _cacheStorage.saveCollection(_loansCacheKey, updated);
+
     if (loanId < 0) {
-      final banks = await _cacheStorage.getCollection('mobile_banks_cache');
-      final matchedBank = banks.firstWhere(
-        (item) => item['id'] == bankId,
-        orElse: () => <String, dynamic>{},
-      );
-      final cached = await _cacheStorage.getCollection(_loansCacheKey);
-      final updated = cached
-          .map((item) => item['id'] == loanId
-              ? {
-                  ...item,
-                  'bank_id': bankId,
-                  'bank_name': matchedBank['name'] as String? ?? 'Sin banco',
-                  'description': description,
-                  'owner': owner,
-                  'initial_amount': initialAmount,
-                  'total_installments': totalInstallments,
-                  'pending_installments': pendingInstallments,
-                  'monthly_payment': monthlyPayment,
-                  'start_date': startDate,
-                }
-              : item)
-          .toList();
-      await _cacheStorage.saveCollection(_loansCacheKey, updated);
+      await AppServices.syncService.enqueue(OfflineOperation(
+        id: 'loan-$loanId',
+        module: 'cards',
+        method: 'POST',
+        path: '/cards_loans/loans',
+        payload: {
+          'bank_id': bankId,
+          'description': description,
+          'owner': owner,
+          'initial_amount': initialAmount,
+          'total_installments': totalInstallments,
+          'pending_installments': pendingInstallments,
+          'monthly_payment': monthlyPayment,
+          'interest_rate': interestRate,
+          'start_date': startDate,
+        },
+        createdAt: DateTime.now(),
+      ));
       return;
     }
-    await _apiClient.put('/cards_loans/loans/$loanId', {
-      'bank_id': bankId,
-      'description': description,
-      'owner': owner,
-      'initial_amount': initialAmount,
-      'total_installments': totalInstallments,
-      'pending_installments': pendingInstallments,
-      'monthly_payment': monthlyPayment,
-      'interest_rate': interestRate,
-      'start_date': startDate,
-    });
+
+    await AppServices.syncService.enqueue(OfflineOperation(
+      id: 'loan-update-$loanId',
+      module: 'cards',
+      method: 'PUT',
+      path: '/cards_loans/loans/$loanId',
+      payload: {
+        'bank_id': bankId,
+        'description': description,
+        'owner': owner,
+        'initial_amount': initialAmount,
+        'total_installments': totalInstallments,
+        'pending_installments': pendingInstallments,
+        'monthly_payment': monthlyPayment,
+        'interest_rate': interestRate,
+        'start_date': startDate,
+      },
+      createdAt: DateTime.now(),
+    ));
   }
 
   Future<void> deleteLoan(int loanId) async {
+    final cached = await _cacheStorage.getCollection(_loansCacheKey);
+    await _cacheStorage.saveCollection(
+      _loansCacheKey,
+      cached.where((item) => item['id'] != loanId).toList(),
+    );
+
     if (loanId < 0) {
-      final cached = await _cacheStorage.getCollection(_loansCacheKey);
-      await _cacheStorage.saveCollection(
-        _loansCacheKey,
-        cached.where((item) => item['id'] != loanId).toList(),
-      );
+      await AppServices.syncService.removeQueuedOperation('loan-$loanId');
       return;
     }
-    await _apiClient.delete('/cards_loans/loans/$loanId');
+    await AppServices.syncService.removeQueuedOperation('loan-update-$loanId');
+    await AppServices.syncService.enqueue(OfflineOperation(
+      id: 'loan-delete-$loanId',
+      module: 'cards',
+      method: 'DELETE',
+      path: '/cards_loans/loans/$loanId',
+      payload: const {},
+      createdAt: DateTime.now(),
+    ));
   }
 }

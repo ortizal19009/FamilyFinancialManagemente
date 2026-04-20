@@ -316,17 +316,67 @@ class MobileExpensesRepository {
     int? cardId,
     int? bankAccountId,
   }) async {
-    await _apiClient.put('/expenses/$expenseId', {
-      'description': description,
-      'payment_method': paymentMethod,
-      'expense_date': expenseDate,
-      'card_id': cardId,
-      'bank_account_id': bankAccountId,
-      'items': items,
-    });
+    final categories = await loadCategories();
+    final firstItem = items.isNotEmpty ? items.first : const <String, dynamic>{};
+    final categoryId = firstItem['category_id'] as int? ?? 0;
+    final categoryName = categories
+        .where((item) => item.id == categoryId)
+        .map((item) => item.name)
+        .firstWhere((item) => item.isNotEmpty, orElse: () => '');
+    final amount = items.fold<double>(
+      0,
+      (sum, item) => sum + ((item['amount'] as num?)?.toDouble() ?? 0),
+    );
+    final cached = await _cacheStorage.getCollection(_expensesCacheKey);
+    final updated = cached
+        .map((item) => item['server_id'] == expenseId
+            ? {
+                ...item,
+                'description': description,
+                'payment_method': paymentMethod,
+                'expense_date': expenseDate,
+                'card_id': cardId,
+                'bank_account_id': bankAccountId,
+                'items': items,
+                'amount': amount,
+                'category_id': categoryId,
+                'category_name': categoryName,
+                'sync_status': 'pending',
+              }
+            : item)
+        .toList();
+    await _cacheStorage.saveCollection(_expensesCacheKey, updated);
+    await AppServices.syncService.enqueue(OfflineOperation(
+      id: 'expense-update-$expenseId',
+      module: 'expenses',
+      method: 'PUT',
+      path: '/expenses/$expenseId',
+      payload: {
+        'description': description,
+        'payment_method': paymentMethod,
+        'expense_date': expenseDate,
+        'card_id': cardId,
+        'bank_account_id': bankAccountId,
+        'items': items,
+      },
+      createdAt: DateTime.now(),
+    ));
   }
 
   Future<void> deleteExpense(int expenseId) async {
-    await _apiClient.delete('/expenses/$expenseId');
+    final cached = await _cacheStorage.getCollection(_expensesCacheKey);
+    await _cacheStorage.saveCollection(
+      _expensesCacheKey,
+      cached.where((item) => item['server_id'] != expenseId).toList(),
+    );
+    await AppServices.syncService.removeQueuedOperation('expense-update-$expenseId');
+    await AppServices.syncService.enqueue(OfflineOperation(
+      id: 'expense-delete-$expenseId',
+      module: 'expenses',
+      method: 'DELETE',
+      path: '/expenses/$expenseId',
+      payload: const {},
+      createdAt: DateTime.now(),
+    ));
   }
 }

@@ -269,7 +269,11 @@ class _PlanningScreenState extends State<PlanningScreen> {
     }
 
     try {
-      await _repository.deletePlan(plan['id'] as int);
+      await _repository.deletePlan(
+        plan['id'] as int,
+        month: _month,
+        year: _year,
+      );
       _message = 'Presupuesto eliminado correctamente';
       await _loadData();
     } catch (error) {
