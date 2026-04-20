@@ -14,9 +14,11 @@ class ExpensesScreen extends StatefulWidget {
   const ExpensesScreen({
     super.key,
     this.autoStartVoice = false,
+    this.showScaffold = false,
   });
 
   final bool autoStartVoice;
+  final bool showScaffold;
 
   @override
   State<ExpensesScreen> createState() => _ExpensesScreenState();
@@ -1134,6 +1136,20 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final body = _buildBody(context);
+    if (widget.showScaffold) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Gastos'),
+        ),
+        body: body,
+      );
+    }
+
+    return body;
+  }
+
+  Widget _buildBody(BuildContext context) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }

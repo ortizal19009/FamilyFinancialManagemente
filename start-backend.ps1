@@ -6,7 +6,7 @@ $pythonExe = Join-Path $projectRoot '.venv\Scripts\python.exe'
 Set-Location $projectRoot
 
 if (Test-Path $pythonExe) {
-    & $pythonExe -m uvicorn backend.app:asgi_app --host 127.0.0.1 --port 5000 --reload
+    & $pythonExe -m uvicorn backend.app:asgi_app --host 0.0.0.0 --port 5000 --reload
     exit $LASTEXITCODE
 }
 

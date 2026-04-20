@@ -112,7 +112,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     onPressed: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => const ExpensesScreen(autoStartVoice: true),
+                          builder: (_) => const ExpensesScreen(
+                            autoStartVoice: true,
+                            showScaffold: true,
+                          ),
                         ),
                       );
                     },
