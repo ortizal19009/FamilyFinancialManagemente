@@ -26,6 +26,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
   List<Map<String, dynamic>> _members = [];
   bool _loading = true;
   String? _message;
+  String? _generatedPassword;
 
   @override
   void initState() {
@@ -57,40 +58,51 @@ class _FamilyScreenState extends State<FamilyScreen> {
     final linkedEmailController = TextEditingController(
       text: member?['linked_user_email']?.toString() ?? '',
     );
+    final passwordController = TextEditingController();
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: Text(member == null ? 'Nuevo integrante' : 'Editar integrante'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(labelText: 'Nombre'),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: selectedRelationship,
-                decoration: const InputDecoration(labelText: 'Parentesco'),
-                items: _relationshipOptions
-                    .map((option) => DropdownMenuItem(value: option, child: Text(option)))
-                    .toList(),
-                onChanged: (value) {
-                  if (value == null) return;
-                  setDialogState(() => selectedRelationship = value);
-                },
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: linkedEmailController,
-                decoration: const InputDecoration(
-                  labelText: 'Correo de su cuenta',
-                  hintText: 'Opcional, para vincular su usuario',
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'Nombre'),
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedRelationship,
+                  decoration: const InputDecoration(labelText: 'Parentesco'),
+                  items: _relationshipOptions
+                      .map((option) => DropdownMenuItem(value: option, child: Text(option)))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setDialogState(() => selectedRelationship = value);
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: linkedEmailController,
+                  decoration: const InputDecoration(
+                    labelText: 'Correo de su cuenta',
+                    hintText: 'Opcional, para vincular su usuario',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: passwordController,
+                  decoration: const InputDecoration(
+                    labelText: 'Contrasena inicial',
+                    hintText: 'Opcional. Si la dejas vacia, se genera una temporal',
+                  ),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')),
@@ -103,39 +115,70 @@ class _FamilyScreenState extends State<FamilyScreen> {
     if (confirmed != true) return;
 
     try {
+      final normalizedEmail = linkedEmailController.text.trim().isEmpty
+          ? null
+          : linkedEmailController.text.trim();
+      final normalizedPassword = passwordController.text.trim().isEmpty
+          ? null
+          : passwordController.text.trim();
+
+      Map<String, dynamic> response;
       if (member == null) {
-        await _repository.createMember(
+        response = await _repository.createMember(
           name: nameController.text.trim(),
           relationship: selectedRelationship,
-          linkedUserEmail: linkedEmailController.text.trim().isEmpty
-              ? null
-              : linkedEmailController.text.trim(),
+          linkedUserEmail: normalizedEmail,
+          password: normalizedPassword,
         );
-        _message = 'Integrante agregado correctamente';
       } else {
-        await _repository.updateMember(
+        response = await _repository.updateMember(
           id: member['id'] as int,
           name: nameController.text.trim(),
           relationship: selectedRelationship,
-          linkedUserEmail: linkedEmailController.text.trim().isEmpty
-              ? null
-              : linkedEmailController.text.trim(),
+          linkedUserEmail: normalizedEmail,
+          password: normalizedPassword,
         );
-        _message = 'Integrante actualizado correctamente';
       }
+      final generatedPassword = response['generated_password']?.toString();
+      final queued = response['queued'] == true;
+      setState(() {
+        _generatedPassword = generatedPassword;
+        if (queued) {
+          _message = member == null
+              ? 'Integrante guardado en el celular. Se creara la cuenta al sincronizar.'
+              : 'Integrante actualizado en el celular. Los cambios se sincronizaran luego.';
+        } else if (generatedPassword != null && generatedPassword.isNotEmpty) {
+          _message = member == null
+              ? 'Integrante agregado y cuenta creada correctamente.'
+              : 'Integrante actualizado y cuenta creada correctamente.';
+        } else {
+          _message = member == null
+              ? 'Integrante agregado correctamente.'
+              : 'Integrante actualizado correctamente.';
+        }
+      });
       await _loadData();
     } catch (error) {
-      setState(() => _message = error.toString().replaceFirst('Exception: ', ''));
+      setState(() {
+        _generatedPassword = null;
+        _message = error.toString().replaceFirst('Exception: ', '');
+      });
     }
   }
 
   Future<void> _deleteMember(Map<String, dynamic> member) async {
     try {
       await _repository.deleteMember(member['id'] as int);
-      _message = 'Integrante eliminado correctamente';
+      setState(() {
+        _generatedPassword = null;
+        _message = 'Integrante eliminado correctamente';
+      });
       await _loadData();
     } catch (error) {
-      setState(() => _message = error.toString().replaceFirst('Exception: ', ''));
+      setState(() {
+        _generatedPassword = null;
+        _message = error.toString().replaceFirst('Exception: ', '');
+      });
     }
   }
 
@@ -156,7 +199,22 @@ class _FamilyScreenState extends State<FamilyScreen> {
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
-                    child: Text(_message!),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(_message!),
+                        if ((_generatedPassword ?? '').isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            'Clave temporal creada: $_generatedPassword',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),

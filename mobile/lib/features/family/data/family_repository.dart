@@ -14,6 +14,20 @@ class FamilyRepository {
   final LocalCacheStorage _cacheStorage;
   static const _membersCacheKey = 'mobile_family_members_cache';
 
+  Map<String, dynamic> _memberPayload({
+    required String name,
+    required String relationship,
+    String? linkedUserEmail,
+    String? password,
+  }) {
+    return {
+      'name': name,
+      'relationship': relationship,
+      'linked_user_email': linkedUserEmail,
+      'password': password,
+    };
+  }
+
   Future<List<Map<String, dynamic>>> loadMembers() async {
     try {
       final response = await _apiClient.get('/family/');
@@ -28,11 +42,24 @@ class FamilyRepository {
     }
   }
 
-  Future<void> createMember({
+  Future<Map<String, dynamic>> createMember({
     required String name,
     required String relationship,
     String? linkedUserEmail,
+    String? password,
   }) async {
+    final payload = _memberPayload(
+      name: name,
+      relationship: relationship,
+      linkedUserEmail: linkedUserEmail,
+      password: password,
+    );
+
+    if (AppServices.syncService.status.isOnline) {
+      final response = await _apiClient.post('/family/', payload);
+      return Map<String, dynamic>.from(response as Map);
+    }
+
     final localMember = {
       'id': _nextLocalId(),
       'name': name,
@@ -47,14 +74,13 @@ class FamilyRepository {
         module: 'family',
         method: 'POST',
         path: '/family/',
-        payload: {
-          'name': name,
-          'relationship': relationship,
-          'linked_user_email': linkedUserEmail,
-        },
+        payload: payload,
         createdAt: DateTime.now(),
       ),
     );
+    return {
+      'queued': true,
+    };
   }
 
   Future<List<Map<String, dynamic>>> _loadPendingLocalMembers() async {
@@ -64,12 +90,25 @@ class FamilyRepository {
 
   int _nextLocalId() => -DateTime.now().microsecondsSinceEpoch;
 
-  Future<void> updateMember({
+  Future<Map<String, dynamic>> updateMember({
     required int id,
     required String name,
     required String relationship,
     String? linkedUserEmail,
+    String? password,
   }) async {
+    final payload = _memberPayload(
+      name: name,
+      relationship: relationship,
+      linkedUserEmail: linkedUserEmail,
+      password: password,
+    );
+
+    if (id >= 0 && AppServices.syncService.status.isOnline) {
+      final response = await _apiClient.put('/family/$id', payload);
+      return Map<String, dynamic>.from(response as Map);
+    }
+
     final cached = await _cacheStorage.getCollection(_membersCacheKey);
     final updated = cached
         .map((item) => item['id'] == id
@@ -90,15 +129,13 @@ class FamilyRepository {
           module: 'family',
           method: 'POST',
           path: '/family/',
-          payload: {
-            'name': name,
-            'relationship': relationship,
-            'linked_user_email': linkedUserEmail,
-          },
+          payload: payload,
           createdAt: DateTime.now(),
         ),
       );
-      return;
+      return {
+        'queued': true,
+      };
     }
     await AppServices.syncService.enqueue(
       OfflineOperation(
@@ -106,14 +143,13 @@ class FamilyRepository {
         module: 'family',
         method: 'PUT',
         path: '/family/$id',
-        payload: {
-          'name': name,
-          'relationship': relationship,
-          'linked_user_email': linkedUserEmail,
-        },
+        payload: payload,
         createdAt: DateTime.now(),
       ),
     );
+    return {
+      'queued': true,
+    };
   }
 
   Future<void> deleteMember(int id) async {
