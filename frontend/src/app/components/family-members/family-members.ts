@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { ApiService } from '../../services/api.service';
-import { AuthService, User } from '../../services/auth.service';
 
 @Component({
   selector: 'app-family-members',
@@ -14,19 +13,17 @@ import { AuthService, User } from '../../services/auth.service';
 })
 export class FamilyMembersComponent implements OnInit {
   private apiService = inject(ApiService);
-  private authService = inject(AuthService);
 
   members: any[] = [];
-  linkableUsers: User[] = [];
   formMember = this.createEmptyMember();
 
   editingMember: any = null;
   loading = false;
   successMsg = '';
+  generatedPassword = '';
   errorMsg = '';
 
   ngOnInit() {
-    this.loadLinkableUsers();
     this.loadMembers();
   }
 
@@ -34,26 +31,24 @@ export class FamilyMembersComponent implements OnInit {
     this.apiService.getFamilyMembers().subscribe(data => this.members = data);
   }
 
-  loadLinkableUsers() {
-    this.authService.getFamilyLinkOptions().subscribe({
-      next: (users) => {
-        this.linkableUsers = users;
-      },
-    });
-  }
-
   onCreateMember() {
     this.loading = true;
     this.apiService.createFamilyMember(this.formMember).subscribe({
-      next: () => {
-        this.successMsg = 'Miembro agregado';
+      next: (response) => {
+        this.successMsg = response.generated_password
+          ? 'Miembro agregado y cuenta creada'
+          : 'Miembro agregado';
+        this.generatedPassword = response.generated_password ?? '';
         this.resetForm();
         this.loadMembers();
         this.loading = false;
-        setTimeout(() => this.successMsg = '', 3000);
+        setTimeout(() => {
+          this.successMsg = '';
+          this.generatedPassword = '';
+        }, 8000);
       },
-      error: () => {
-        this.errorMsg = 'Error al agregar';
+      error: (error) => {
+        this.errorMsg = error?.error?.msg || 'Error al agregar';
         this.loading = false;
         setTimeout(() => this.errorMsg = '', 3000);
       }
@@ -65,33 +60,29 @@ export class FamilyMembersComponent implements OnInit {
     this.formMember = {
       name: member.name,
       relationship: member.relationship,
-      linked_user_email: member.linked_user_email ?? ''
+      linked_user_email: member.linked_user_email ?? '',
+      password: ''
     };
-  }
-
-  onLinkedUserChange() {
-    const selectedUser = this.linkableUsers.find(
-      (user) => user.email === this.formMember.linked_user_email,
-    );
-    if (!selectedUser) {
-      return;
-    }
-
-    this.formMember.name = selectedUser.full_name;
   }
 
   onUpdateMember() {
     this.loading = true;
     this.apiService.updateFamilyMember(this.editingMember.id, this.formMember).subscribe({
-      next: () => {
-        this.successMsg = 'Actualizado correctamente';
+      next: (response) => {
+        this.successMsg = response.generated_password
+          ? 'Integrante actualizado y cuenta creada'
+          : 'Actualizado correctamente';
+        this.generatedPassword = response.generated_password ?? '';
         this.resetForm();
         this.loadMembers();
         this.loading = false;
-        setTimeout(() => this.successMsg = '', 3000);
+        setTimeout(() => {
+          this.successMsg = '';
+          this.generatedPassword = '';
+        }, 8000);
       },
-      error: () => {
-        this.errorMsg = 'Error al actualizar';
+      error: (error) => {
+        this.errorMsg = error?.error?.msg || 'Error al actualizar';
         this.loading = false;
         setTimeout(() => this.errorMsg = '', 3000);
       }
@@ -117,7 +108,8 @@ export class FamilyMembersComponent implements OnInit {
     return {
       name: '',
       relationship: 'Esposa',
-      linked_user_email: ''
+      linked_user_email: '',
+      password: ''
     };
   }
 }

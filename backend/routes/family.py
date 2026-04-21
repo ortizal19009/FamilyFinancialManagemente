@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
+import secrets
 
 try:
     from backend.models import FamilyMember, FamilyRelationship, User, db
@@ -56,6 +57,30 @@ def ensure_user_member(user):
     db.session.add(member)
     db.session.commit()
     return member
+
+
+def generate_temporary_password():
+    return secrets.token_urlsafe(8)
+
+
+def resolve_linked_user(name, linked_user_email, requested_password=None):
+    if not linked_user_email:
+        return None, None
+
+    linked_user = User.query.filter_by(email=linked_user_email).first()
+    if linked_user:
+        return linked_user, None
+
+    temporary_password = (requested_password or '').strip() or generate_temporary_password()
+    linked_user = User(
+        full_name=name,
+        email=linked_user_email,
+        role='member',
+    )
+    linked_user.set_password(temporary_password)
+    db.session.add(linked_user)
+    db.session.flush()
+    return linked_user, temporary_password
 
 
 def upsert_relationship(source_member_id, target_member_id, relationship):
@@ -136,11 +161,12 @@ def create_family_member():
     name = (data.get('name') or '').strip()
     relationship = normalize_relationship(data.get('relationship'))
     linked_user_email = (data.get('linked_user_email') or '').strip().lower()
+    requested_password = data.get('password')
 
     if not name:
         return jsonify({'msg': 'Name is required'}), 400
 
-    linked_user = User.query.filter_by(email=linked_user_email).first() if linked_user_email else None
+    linked_user, temporary_password = resolve_linked_user(name, linked_user_email, requested_password)
     member = FamilyMember.query.filter_by(user_id=linked_user.id).first() if linked_user else None
 
     if member and member.id == current_member.id:
@@ -165,10 +191,13 @@ def create_family_member():
         upsert_relationship(member.id, current_member.id, inverse)
 
     db.session.commit()
-    return jsonify({
+    response = {
         'msg': 'Family member added',
         'member': serialize_member(member, current_member),
-    }), 201
+    }
+    if temporary_password:
+        response['generated_password'] = temporary_password
+    return jsonify(response), 201
 
 
 @family_bp.route('/<int:id>', methods=['PUT'])
@@ -184,11 +213,16 @@ def update_family_member(id):
         return jsonify({'msg': 'Member not found'}), 404
 
     linked_user_email = (data.get('linked_user_email') or '').strip().lower()
-    linked_user = User.query.filter_by(email=linked_user_email).first() if linked_user_email else None
+    requested_password = data.get('password')
+    linked_user, temporary_password = resolve_linked_user(
+        (data.get('name') or member.name or '').strip(),
+        linked_user_email,
+        requested_password,
+    )
     relationship = normalize_relationship(data.get('relationship'))
 
     member.name = (linked_user.full_name if linked_user else data.get('name') or member.name).strip()
-    member.user_id = linked_user.id if linked_user else member.user_id
+    member.user_id = linked_user.id if linked_user else None
     member.relationship = relationship or member.relationship
 
     if member.id != current_member.id and relationship:
@@ -198,10 +232,13 @@ def update_family_member(id):
             upsert_relationship(member.id, current_member.id, inverse)
 
     db.session.commit()
-    return jsonify({
+    response = {
         'msg': 'Member updated',
         'member': serialize_member(member, current_member),
-    }), 200
+    }
+    if temporary_password:
+        response['generated_password'] = temporary_password
+    return jsonify(response), 200
 
 
 @family_bp.route('/<int:id>', methods=['DELETE'])

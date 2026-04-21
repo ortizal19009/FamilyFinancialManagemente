@@ -11,6 +11,13 @@
 
   <div *ngIf="successMsg" class="alert alert-success py-2 small mb-3">
     <i class="bi bi-check-circle-fill me-2"></i> {{ successMsg }}
+    <div *ngIf="generatedPassword" class="mt-2">
+      Clave temporal creada: <strong>{{ generatedPassword }}</strong>
+    </div>
+  </div>
+
+  <div *ngIf="errorMsg" class="alert alert-danger py-2 small mb-3">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ errorMsg }}
   </div>
 
   <div class="row g-4">
@@ -43,20 +50,29 @@
               </select>
             </div>
             <div class="mb-3">
-              <label class="form-label small fw-bold text-muted">Cuenta vinculada</label>
-              <select
+              <label class="form-label small fw-bold text-muted">Correo de su cuenta</label>
+              <input
+                type="email"
                 name="linkedUserEmail"
-                class="form-select form-select-sm bg-light"
+                class="form-control form-control-sm bg-light"
                 [(ngModel)]="formMember.linked_user_email"
-                (ngModelChange)="onLinkedUserChange()"
-              >
-                <option value="">Sin vincular</option>
-                <option *ngFor="let user of linkableUsers" [value]="user.email">
-                  {{ user.full_name }} · {{ user.email }}{{ user.is_current_user ? ' · Yo' : '' }}
-                </option>
-              </select>
+                placeholder="Opcional, para vincular su usuario"
+              />
               <div class="form-text small">
-                Selecciona la cuenta de esa persona para que el sistema la reconozca como "Yo" cuando inicie sesión.
+                Escribe el correo de esa persona para vincular su cuenta, igual que en mobile.
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-bold text-muted">Contraseña inicial</label>
+              <input
+                type="text"
+                name="password"
+                class="form-control form-control-sm bg-light"
+                [(ngModel)]="formMember.password"
+                placeholder="Opcional. Si la dejas vacía, se genera una temporal"
+              />
+              <div class="form-text small">
+                Solo se usa si el correo aún no existe como usuario.
               </div>
             </div>
             <div class="d-flex gap-2">
