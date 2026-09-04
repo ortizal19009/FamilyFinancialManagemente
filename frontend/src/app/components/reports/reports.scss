@@ -1,0 +1,22 @@
+.report-card {
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-radius: 8px;
+    background-color: #FFFFFF;
+
+    &:hover {
+        border: 1px solid #4B5320 !important;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.12) !important;
+    }
+
+    &.selected {
+        border: 2px solid #4B5320 !important;
+        background-color: rgba(75, 83, 32, 0.06);
+    }
+
+    &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+}

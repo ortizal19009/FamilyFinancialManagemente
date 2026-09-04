@@ -1,9 +1,13 @@
 {
-  "name": "frontend",
-  "short_name": "frontend",
+  "name": "Finanzas Familiar",
+  "short_name": "Finanzas",
+  "description": "Gestión profesional de finanzas familiares: gastos, ingresos, presupuestos, inversiones y reportes.",
+  "lang": "es",
   "display": "standalone",
   "scope": "./",
   "start_url": "./",
+  "theme_color": "#4B5320",
+  "background_color": "#FFFFFF",
   "icons": [
     {
       "src": "icons/icon-72x72.png",

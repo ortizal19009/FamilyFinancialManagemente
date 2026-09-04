@@ -7,10 +7,16 @@ import uuid
 
 from flask import Blueprint, current_app, request, jsonify, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from sqlalchemy import func, or_
 from sqlalchemy.orm import joinedload
 from werkzeug.utils import secure_filename
 
 from pypdf import PdfReader
+
+try:
+    from backend.query_helpers import apply_date_range, paginate_or_plain
+except ModuleNotFoundError:
+    from query_helpers import apply_date_range, paginate_or_plain
 
 try:
     from PIL import Image
@@ -23,6 +29,16 @@ try:
     from backend.models import db, Expense, Category, Card, BankAccount, User
 except ModuleNotFoundError:
     from models import db, Expense, Category, Card, BankAccount, User
+
+try:
+    from backend.ledger import (
+        cancel_movements_for,
+        record_audit,
+        record_movement,
+        serialize_model,
+    )
+except ModuleNotFoundError:
+    from ledger import cancel_movements_for, record_audit, record_movement, serialize_model
 
 expenses_bp = Blueprint('expenses', __name__)
 
@@ -76,6 +92,23 @@ def _validate_receipt_file(file_storage):
     _, extension = os.path.splitext(original_name.lower())
     if extension not in ALLOWED_RECEIPT_EXTENSIONS:
         raise ValueError('Solo se permiten comprobantes PDF o imágenes')
+
+    mimetype = (file_storage.mimetype or '').lower()
+    allowed_mimetypes = {'application/pdf', 'image/png', 'image/jpeg', 'image/webp'}
+    if not mimetype:
+        raise ValueError('No se pudo determinar el tipo de archivo del comprobante')
+    if mimetype not in allowed_mimetypes:
+        raise ValueError('El tipo de archivo del comprobante no es válido')
+
+
+def _delete_stored_receipt_file(stored_name):
+    upload_folder = current_app.config['UPLOAD_FOLDER']
+    stored_path = os.path.join(upload_folder, stored_name)
+    try:
+        if os.path.exists(stored_path):
+            os.remove(stored_path)
+    except OSError:
+        current_app.logger.warning('No se pudo eliminar el comprobante huérfano: %s', stored_path)
 
 
 def _normalize_text(text):
@@ -238,6 +271,10 @@ def _build_expense_response(expense):
         "bank_account_id": expense.bank_account_id,
         "expense_date": expense.expense_date.strftime('%Y-%m-%d'),
         "description": expense.description,
+        "status": expense.status,
+        "cancelled_at": expense.cancelled_at.isoformat() if expense.cancelled_at else None,
+        "cancelled_by": expense.cancelled_by,
+        "cancellation_reason": expense.cancellation_reason,
         "created_at": expense.created_at.isoformat() if expense.created_at else None
     }
 
@@ -293,6 +330,19 @@ def _resolve_linked_bank_account(payment_method, card_id=None, bank_account_id=N
     return None
 
 
+def _movement_targets(payment_method, card_id=None, bank_account_id=None):
+    """Devuelve (account_id, card_id) afectados por un gasto para el libro de movimientos."""
+    if payment_method == 'Tarjeta Crédito':
+        return None, card_id
+    if payment_method == 'Banca Móvil':
+        return bank_account_id, None
+    if payment_method == 'Tarjeta Débito' and card_id:
+        card = db.session.get(Card, card_id)
+        if card and card.bank_account_id:
+            return card.bank_account_id, card_id
+    return None, None
+
+
 def _load_group_expenses(base_expense):
     if not base_expense:
         return []
@@ -329,6 +379,9 @@ def _group_expenses(expenses):
                 "categories_summary": [],
                 "items": [],
                 "created_at": created_at,
+                "status": expense.status,
+                "cancelled_at": expense.cancelled_at.isoformat() if expense.cancelled_at else None,
+                "cancellation_reason": expense.cancellation_reason,
                 "card_name": expense.card.card_name if expense.card else None,
                 "bank_account_name": f"{expense.bank_account.bank.name} - {expense.bank_account.account_number}"
                 if expense.bank_account and expense.bank_account.bank else None,
@@ -429,20 +482,53 @@ def analyze_receipt():
 def get_expenses():
     user_id = int(get_jwt_identity())
     user = db.session.get(User, user_id)
-    
-    # Si es admin, ver todos. Si no, solo los propios.
-    if user.role == 'admin':
-        expenses = Expense.query.options(
-            joinedload(Expense.user),
-            joinedload(Expense.category)
-        ).order_by(Expense.expense_date.desc()).all()
-    else:
-        expenses = Expense.query.options(
-            joinedload(Expense.user),
-            joinedload(Expense.category)
-        ).filter_by(user_id=user_id).order_by(Expense.expense_date.desc()).all()
-        
-    return jsonify(_group_expenses(expenses)), 200
+    include_cancelled = request.args.get('include_cancelled', '').lower() in ('true', '1')
+
+    query = Expense.query.options(
+        joinedload(Expense.user),
+        joinedload(Expense.category),
+        joinedload(Expense.card),
+        joinedload(Expense.bank_account),
+    )
+    if user.role != 'admin':
+        query = query.filter(Expense.user_id == user_id)
+
+    status = request.args.get('status')
+    if status:
+        query = query.filter(Expense.status == status)
+    elif not include_cancelled:
+        query = query.filter(Expense.status != 'ANULADO')
+
+    query = apply_date_range(query, Expense.expense_date)
+
+    category_id = request.args.get('category_id')
+    if category_id:
+        try:
+            query = query.filter(Expense.category_id == int(category_id))
+        except (TypeError, ValueError):
+            query = query.filter(Expense.category_id.is_(None))
+
+    payment_method = request.args.get('payment_method')
+    if payment_method:
+        query = query.filter(Expense.payment_method == payment_method)
+
+    search = (request.args.get('search') or '').strip()
+    if search:
+        needle = f'%{search.lower()}%'
+        query = (
+            query.outerjoin(Category, Expense.category_id == Category.id)
+            .filter(or_(
+                func.lower(Expense.description).like(needle),
+                func.lower(Category.name).like(needle),
+            ))
+        )
+
+    query = query.order_by(Expense.expense_date.desc(), Expense.created_at.desc())
+
+    items, meta = paginate_or_plain(query, _group_expenses)
+    if meta is None:
+        return jsonify(items), 200
+    return jsonify({"items": items, **meta}), 200
 
 @expenses_bp.route('/', methods=['POST'])
 @jwt_required()
@@ -468,6 +554,13 @@ def create_expense():
     if receipt_file and receipt_file.filename:
         try:
             _validate_receipt_file(receipt_file)
+        except ValueError as error:
+            return jsonify({"msg": str(error)}), 400
+
+    receipt_metadata = None
+    if receipt_file and receipt_file.filename:
+        try:
+            receipt_metadata = _store_receipt_file(receipt_file)
         except ValueError as error:
             return jsonify({"msg": str(error)}), 400
 
@@ -524,14 +617,57 @@ def create_expense():
         sign=1,
     )
 
-    db.session.commit()
+    try:
+        db.session.flush()
+        account_id, card_id = _movement_targets(
+            data['payment_method'],
+            card_id=data.get('card_id'),
+            bank_account_id=data.get('bank_account_id'),
+        )
+        record_movement(
+            user_id=user_id,
+            movement_type='GASTO',
+            source_type='EXPENSE',
+            source_id=created_expenses[0].id,
+            amount=total_amount,
+            direction='OUT',
+            movement_date=expense_date,
+            account_id=account_id,
+            card_id=card_id,
+            description=data.get('description'),
+        )
+        record_audit(
+            'CREATE',
+            'expense',
+            created_expenses[0].id,
+            old_values=None,
+            new_values={
+                'payment_method': data['payment_method'],
+                'card_id': data.get('card_id'),
+                'bank_account_id': data.get('bank_account_id'),
+                'expense_date': data['expense_date'],
+                'total_amount': total_amount,
+                'description': data.get('description'),
+                'expense_ids': [expense.id for expense in created_expenses],
+            },
+            user_id=user_id,
+        )
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        if receipt_metadata:
+            _delete_stored_receipt_file(receipt_metadata['stored_name'])
+        raise
 
-    if receipt_file and receipt_file.filename:
+    if receipt_metadata:
         try:
-            receipt_metadata = _store_receipt_file(receipt_file)
             _link_receipt_to_expenses([expense.id for expense in created_expenses], receipt_metadata)
-        except ValueError as error:
-            return jsonify({"msg": str(error)}), 400
+        except Exception:
+            current_app.logger.warning(
+                'Gasto creado pero no se pudo vincular el comprobante %s a los gastos %s',
+                receipt_metadata['stored_name'],
+                [expense.id for expense in created_expenses],
+            )
 
     return jsonify({"msg": "Expense registered successfully"}), 201
 
@@ -549,6 +685,9 @@ def update_expense(expense_id):
     if user.role != 'admin' and base_expense.user_id != user_id:
         return jsonify({"msg": "No autorizado para editar este gasto"}), 403
 
+    if base_expense.status != 'ACTIVO':
+        return jsonify({"msg": "No se puede editar un gasto anulado"}), 400
+
     data = request.get_json() or {}
     items = data.get('items') or []
 
@@ -560,6 +699,7 @@ def update_expense(expense_id):
 
     grouped_expenses = _load_group_expenses(base_expense)
     original_total = sum(float(expense.amount) for expense in grouped_expenses)
+    old_group_values = [serialize_model(expense) for expense in grouped_expenses]
     _apply_payment_effect(
         base_expense.payment_method,
         original_total,
@@ -567,6 +707,8 @@ def update_expense(expense_id):
         bank_account_id=base_expense.bank_account_id,
         sign=-1,
     )
+
+    cancel_movements_for(base_expense.user_id, 'EXPENSE', expense_id)
 
     for expense in grouped_expenses:
         db.session.delete(expense)
@@ -613,7 +755,45 @@ def update_expense(expense_id):
     )
 
     receipt = _get_receipt_for_expense(expense_id)
-    db.session.commit()
+    try:
+        db.session.flush()
+        account_id, card_id = _movement_targets(
+            data['payment_method'],
+            card_id=data.get('card_id'),
+            bank_account_id=data.get('bank_account_id'),
+        )
+        record_movement(
+            user_id=base_expense.user_id,
+            movement_type='GASTO',
+            source_type='EXPENSE',
+            source_id=created_expenses[0].id,
+            amount=total_amount,
+            direction='OUT',
+            movement_date=expense_date,
+            account_id=account_id,
+            card_id=card_id,
+            description=data.get('description'),
+        )
+        record_audit(
+            'UPDATE',
+            'expense',
+            created_expenses[0].id,
+            old_values=old_group_values,
+            new_values={
+                'payment_method': data['payment_method'],
+                'card_id': data.get('card_id'),
+                'bank_account_id': data.get('bank_account_id'),
+                'expense_date': data['expense_date'],
+                'total_amount': total_amount,
+                'description': data.get('description'),
+                'expense_ids': [expense.id for expense in created_expenses],
+            },
+            user_id=user_id,
+        )
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
 
     if receipt:
         manifest = _load_receipt_manifest()
@@ -637,10 +817,18 @@ def delete_expense(expense_id):
         return jsonify({"msg": "Expense not found"}), 404
 
     if user.role != 'admin' and base_expense.user_id != user_id:
-        return jsonify({"msg": "No autorizado para eliminar este gasto"}), 403
+        return jsonify({"msg": "No autorizado para anular este gasto"}), 403
+
+    if base_expense.status != 'ACTIVO':
+        return jsonify({"msg": "El gasto ya fue anulado"}), 400
+
+    data = request.get_json(silent=True) or {}
+    reason = (data.get('reason') or '').strip() or None
 
     grouped_expenses = _load_group_expenses(base_expense)
     total_amount = sum(float(expense.amount) for expense in grouped_expenses)
+    old_group_values = [serialize_model(expense) for expense in grouped_expenses]
+
     _apply_payment_effect(
         base_expense.payment_method,
         total_amount,
@@ -649,15 +837,50 @@ def delete_expense(expense_id):
         sign=-1,
     )
 
-    manifest = _load_receipt_manifest()
+    cancel_movements_for(base_expense.user_id, 'EXPENSE', expense_id)
+
+    now = datetime.utcnow()
     for expense in grouped_expenses:
-        manifest.pop(str(expense.id), None)
-        db.session.delete(expense)
+        expense.status = 'ANULADO'
+        expense.cancelled_at = now
+        expense.cancelled_by = user_id
+        expense.cancellation_reason = reason
+
+    account_id, card_id = _movement_targets(
+        base_expense.payment_method,
+        card_id=base_expense.card_id,
+        bank_account_id=base_expense.bank_account_id,
+    )
+    record_movement(
+        user_id=base_expense.user_id,
+        movement_type='REVERSION',
+        source_type='EXPENSE',
+        source_id=expense_id,
+        amount=total_amount,
+        direction='IN',
+        movement_date=base_expense.expense_date,
+        account_id=account_id,
+        card_id=card_id,
+        description=reason or f'Anulación del gasto {expense_id}',
+        status='REVERSADO',
+    )
+    record_audit(
+        'CANCEL',
+        'expense',
+        expense_id,
+        old_values=old_group_values,
+        new_values={
+            'status': 'ANULADO',
+            'reason': reason,
+            'cancelled_at': now.isoformat(),
+            'cancelled_by': user_id,
+        },
+        user_id=user_id,
+    )
 
     db.session.commit()
-    _save_receipt_manifest(manifest)
 
-    return jsonify({"msg": "Expense deleted successfully"}), 200
+    return jsonify({"msg": "Expense cancelled successfully"}), 200
 
 
 @expenses_bp.route('/<int:expense_id>/receipt', methods=['GET'])

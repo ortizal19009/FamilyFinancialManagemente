@@ -1,0 +1,58 @@
+# Migraciones (Alembic / Flask-Migrate)
+
+Este directorio contiene las migraciones versionadas del esquema de la base de
+datos. Toda evolución del esquema debe registrarse aquí; no se editan tablas a
+mano.
+
+## Comandos de uso diario
+
+```bash
+# Generar una nueva migración autogenerada tras editar un modelo
+flask --app backend.app db migrate -m "descripcion del cambio"
+
+# Aplicar las migraciones pendientes
+flask --app backend.app db upgrade
+
+# Ver el estado / las migraciones pendientes
+flask --app backend.app db current
+flask --app backend.app db heads
+```
+
+## Adopción en una base existente (despliegue actual)
+
+La instancia de producción ya tiene el esquema creado por `database.sql` y por
+las funciones `ensure_*`. Para convertir Alembic en la fuente de verdad sin
+recrear nada:
+
+1. Hacer respaldo de la base antes de continuar.
+2. Marcar el esquema actual como "migración inicial aplicada" SIN ejecutarla:
+
+   ```bash
+   flask --app backend.app db stamp 1cad01f2b793
+   ```
+
+3. A partir de aquí, aplicar los cambios nuevos con `flask --app backend.app db upgrade`.
+
+## Historial de migraciones
+
+- `1cad01f2b793` — 001 initial schema (16 tablas).
+- `88805ed63e9b` — 002 audit, movements and soft cancel (`audit_log`,
+  `financial_movements`, columnas `status`/`cancelled_*` en `expenses` e `income`).
+- `f5a02c12ae0e` — 003 transfers, card payments and loan amortization
+  (`transfers`, `card_payments`, `loan_payments`).
+
+Aplicar en orden con `flask --app backend.app db upgrade`.
+
+> Compatibilidad temporal: las funciones `ensure_*` de `backend/app.py` se
+> mantienen para instalaciones antiguas que aún no usan Alembic. Su objetivo es
+> desaparecer de forma gradual conforme la adopción de migraciones sea universal.
+
+## Procedimiento para ampliar el esquema
+
+1. Editar los modelos en `backend/models.py`.
+2. `flask --app backend.app db migrate -m "descripcion"`.
+3. Revisar la migración generada en `migrations/versions/<hash>_*.py`.
+4. Probar en SQLite y en PostgreSQL antes de desplegar:
+   `flask --app backend.app db upgrade`.
+5. Si la migración toca columnas con datos existentes, escribir la lógica de
+   backfill de forma idempotente dentro de `upgrade()`.

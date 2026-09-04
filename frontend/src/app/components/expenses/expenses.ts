@@ -2,8 +2,9 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-import { ApiService } from '../../services/api.service';
+import { ApiService, PaginatedResult } from '../../services/api.service';
 import { AuthService } from '../../services/auth.service';
+import { ConfirmService } from '../../services/confirm.service';
 
 @Component({
   selector: 'app-expenses',
@@ -15,12 +16,21 @@ import { AuthService } from '../../services/auth.service';
 export class ExpensesComponent implements OnInit {
   private apiService = inject(ApiService);
   private authService = inject(AuthService);
+  private confirmService = inject(ConfirmService);
 
   currentUser = this.authService.currentUser;
   expenses: any[] = [];
   categories: any[] = [];
   cards: any[] = [];
   accounts: any[] = [];
+
+  searchText = '';
+  page = 1;
+  perPage = 10;
+  totalItems = 0;
+  totalPages = 0;
+  loadingExpenses = false;
+  private searchTimer: ReturnType<typeof setTimeout> | null = null;
 
   newExpense = {
     description: '',
@@ -49,10 +59,57 @@ export class ExpensesComponent implements OnInit {
   }
 
   loadData() {
-    this.apiService.getExpenses().subscribe(data => this.expenses = data);
+    this.loadExpenses();
     this.apiService.getCategories().subscribe(data => this.categories = data);
     this.apiService.getCards().subscribe(data => this.cards = data);
     this.apiService.getBankAccounts().subscribe(data => this.accounts = data);
+  }
+
+  loadExpenses() {
+    this.loadingExpenses = true;
+    this.apiService.getExpenses({
+      search: this.searchText || undefined,
+      page: this.page,
+      per_page: this.perPage,
+    }).subscribe({
+      next: (data) => {
+        const result = data as PaginatedResult<any>;
+        if (Array.isArray(result)) {
+          this.expenses = result;
+          this.totalItems = result.length;
+          this.totalPages = this.totalItems > 0 ? 1 : 0;
+        } else {
+          this.expenses = result.items;
+          this.totalItems = result.total;
+          this.totalPages = result.pages;
+        }
+        this.loadingExpenses = false;
+      },
+      error: () => {
+        this.expenses = [];
+        this.totalItems = 0;
+        this.totalPages = 0;
+        this.loadingExpenses = false;
+      }
+    });
+  }
+
+  onSearchInput() {
+    if (this.searchTimer) {
+      clearTimeout(this.searchTimer);
+    }
+    this.searchTimer = setTimeout(() => {
+      this.page = 1;
+      this.loadExpenses();
+    }, 350);
+  }
+
+  goToPage(target: number) {
+    if (target < 1 || target > this.totalPages || target === this.page) {
+      return;
+    }
+    this.page = target;
+    this.loadExpenses();
   }
 
   onSubmit() {
@@ -280,24 +337,32 @@ export class ExpensesComponent implements OnInit {
   }
 
   deleteExpense(expense: any) {
-    const confirmed = window.confirm(`¿Deseas eliminar el gasto "${expense.description}"?`);
-    if (!confirmed) {
-      return;
-    }
-
-    this.apiService.deleteExpense(expense.id).subscribe({
-      next: () => {
-        this.successMsg = 'Gasto eliminado correctamente';
-        if (this.editingExpenseId === expense.id) {
-          this.resetForm();
-        }
-        this.loadData();
-        setTimeout(() => this.successMsg = '', 3000);
-      },
-      error: (error) => {
-        this.errorMsg = error?.error?.msg || 'Error al eliminar el gasto';
-        setTimeout(() => this.errorMsg = '', 3000);
+    this.confirmService.confirm({
+      title: 'Eliminar gasto',
+      message: `¿Deseas eliminar el gasto "${expense.description}"?`,
+      confirmLabel: 'Eliminar'
+    }).subscribe(confirmed => {
+      if (!confirmed) {
+        return;
       }
+
+      this.apiService.deleteExpense(expense.id).subscribe({
+        next: () => {
+          this.successMsg = 'Gasto eliminado correctamente';
+          if (this.editingExpenseId === expense.id) {
+            this.resetForm();
+          }
+          if (this.expenses.length === 1 && this.page > 1) {
+            this.page -= 1;
+          }
+          this.loadExpenses();
+          setTimeout(() => this.successMsg = '', 3000);
+        },
+        error: (error) => {
+          this.errorMsg = error?.error?.msg || 'Error al eliminar el gasto';
+          setTimeout(() => this.errorMsg = '', 3000);
+        }
+      });
     });
   }
 }

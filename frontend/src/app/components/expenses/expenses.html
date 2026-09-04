@@ -182,7 +182,7 @@
           <h6 class="mb-0 fw-bold text-secondary">Historial de Gastos</h6>
           <div class="input-group input-group-sm w-auto">
             <span class="input-group-text bg-light border-0"><i class="bi bi-search text-muted"></i></span>
-            <input type="text" class="form-control bg-light border-0" placeholder="Buscar gasto...">
+            <input type="text" class="form-control bg-light border-0" placeholder="Buscar gasto..." [(ngModel)]="searchText" (ngModelChange)="onSearchInput()">
           </div>
         </div>
         <div class="card-body p-0">
@@ -201,6 +201,15 @@
                 </tr>
               </thead>
               <tbody class="border-top-0">
+                <tr *ngIf="loadingExpenses">
+                  <td colspan="8" class="px-4 py-3">
+                    <div class="d-flex align-items-center gap-2 text-muted">
+                      <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+                      Cargando gastos...
+                    </div>
+                  </td>
+                </tr>
+                <ng-container *ngIf="!loadingExpenses">
                 <tr *ngFor="let exp of expenses">
                   <td class="px-4 text-muted">{{ exp.expense_date }}</td>
                   <td>
@@ -260,12 +269,25 @@
                     No se encontraron gastos registrados
                   </td>
                 </tr>
+                </ng-container>
               </tbody>
             </table>
           </div>
         </div>
-        <div class="card-footer bg-white border-0 py-3 text-center" *ngIf="expenses.length > 0">
-          <button class="btn btn-sm btn-light border small">Cargar más registros</button>
+        <div class="card-footer bg-white border-0 py-3" *ngIf="!loadingExpenses && totalPages > 1">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <span class="small text-muted">
+              Página {{ page }} de {{ totalPages }} · {{ totalItems }} registros
+            </span>
+            <div class="d-flex gap-2">
+              <button class="btn btn-sm btn-light border small" [disabled]="page <= 1" (click)="goToPage(page - 1)">
+                <i class="bi bi-chevron-left me-1"></i> Anterior
+              </button>
+              <button class="btn btn-sm btn-light border small" [disabled]="page >= totalPages" (click)="goToPage(page + 1)">
+                Siguiente <i class="bi bi-chevron-right ms-1"></i>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

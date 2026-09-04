@@ -8,6 +8,11 @@ try:
 except ModuleNotFoundError:
     from models import db, Debtor, SmallDebt, User
 
+try:
+    from backend.query_helpers import apply_search, paginate_or_plain
+except ModuleNotFoundError:
+    from query_helpers import apply_search, paginate_or_plain
+
 debtors_bp = Blueprint('debtors', __name__)
 
 
@@ -44,12 +49,18 @@ def get_debtors():
     if not user:
         return jsonify({"msg": "User not found"}), 404
 
-    if user.role == 'admin':
-        debtors = Debtor.query.order_by(Debtor.created_at.desc()).all()
-    else:
-        debtors = Debtor.query.filter_by(user_id=user_id).order_by(Debtor.created_at.desc()).all()
+    query = Debtor.query
+    if user.role != 'admin':
+        query = query.filter(Debtor.user_id == user_id)
+    if request.args.get('status'):
+        query = query.filter(Debtor.status == request.args.get('status'))
+    query = apply_search(query, Debtor.name, Debtor.description)
+    query = query.order_by(Debtor.created_at.desc())
 
-    return jsonify([_serialize_debtor(d) for d in debtors]), 200
+    items, meta = paginate_or_plain(query, lambda debtors: [_serialize_debtor(d) for d in debtors])
+    if meta is None:
+        return jsonify(items), 200
+    return jsonify({"items": items, **meta}), 200
 
 @debtors_bp.route('/', methods=['POST'])
 @jwt_required()
@@ -123,12 +134,18 @@ def get_small_debts():
     if not user:
         return jsonify({"msg": "User not found"}), 404
 
-    if user.role == 'admin':
-        debts = SmallDebt.query.order_by(SmallDebt.created_at.desc()).all()
-    else:
-        debts = SmallDebt.query.filter_by(user_id=user_id).order_by(SmallDebt.created_at.desc()).all()
+    query = SmallDebt.query
+    if user.role != 'admin':
+        query = query.filter(SmallDebt.user_id == user_id)
+    if request.args.get('status'):
+        query = query.filter(SmallDebt.status == request.args.get('status'))
+    query = apply_search(query, SmallDebt.lender_name, SmallDebt.description)
+    query = query.order_by(SmallDebt.created_at.desc())
 
-    return jsonify([_serialize_small_debt(item) for item in debts]), 200
+    items, meta = paginate_or_plain(query, lambda debts: [_serialize_small_debt(item) for item in debts])
+    if meta is None:
+        return jsonify(items), 200
+    return jsonify({"items": items, **meta}), 200
 
 
 @debtors_bp.route('/small-debts', methods=['POST'])

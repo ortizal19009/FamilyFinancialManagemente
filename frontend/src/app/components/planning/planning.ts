@@ -2,6 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
+import { ConfirmService } from '../../services/confirm.service';
 
 @Component({
   selector: 'app-planning',
@@ -12,6 +13,7 @@ import { ApiService } from '../../services/api.service';
 })
 export class PlanningComponent implements OnInit {
   private apiService = inject(ApiService);
+  private confirmService = inject(ConfirmService);
 
   planningData: any[] = [];
   categories: any[] = [];
@@ -94,24 +96,29 @@ export class PlanningComponent implements OnInit {
   }
 
   onDeletePlan(plan: any) {
-    const confirmed = window.confirm(`¿Deseas eliminar el presupuesto de "${plan.category_name}"?`);
-    if (!confirmed) {
-      return;
-    }
-
-    this.apiService.deletePlanning(plan.id).subscribe({
-      next: () => {
-        this.successMsg = 'Presupuesto eliminado correctamente';
-        if (this.editingPlanId === plan.id) {
-          this.resetPlanForm();
-        }
-        this.loadPlanning();
-        setTimeout(() => this.successMsg = '', 3000);
-      },
-      error: (error) => {
-        this.errorMsg = error?.error?.msg || 'Error al eliminar el presupuesto';
-        setTimeout(() => this.errorMsg = '', 3000);
+    this.confirmService.confirm({
+      title: 'Eliminar presupuesto',
+      message: `¿Deseas eliminar el presupuesto de "${plan.category_name}"?`,
+      confirmLabel: 'Eliminar'
+    }).subscribe(confirmed => {
+      if (!confirmed) {
+        return;
       }
+
+      this.apiService.deletePlanning(plan.id).subscribe({
+        next: () => {
+          this.successMsg = 'Presupuesto eliminado correctamente';
+          if (this.editingPlanId === plan.id) {
+            this.resetPlanForm();
+          }
+          this.loadPlanning();
+          setTimeout(() => this.successMsg = '', 3000);
+        },
+        error: (error) => {
+          this.errorMsg = error?.error?.msg || 'Error al eliminar el presupuesto';
+          setTimeout(() => this.errorMsg = '', 3000);
+        }
+      });
     });
   }
 

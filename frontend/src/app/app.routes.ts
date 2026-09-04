@@ -11,8 +11,10 @@ import { DebtorsComponent } from './components/debtors/debtors';
 import { AdminUsersComponent } from './components/admin-users/admin-users';
 import { FamilyMembersComponent } from './components/family-members/family-members';
 import { InvestmentsComponent } from './components/investments/investments';
+import { ReportsComponent } from './components/reports/reports';
 import { authGuard } from './guards/auth.guard';
 import { guestGuard } from './guards/guest.guard';
+import { adminGuard } from './guards/admin.guard';
 
 export const routes: Routes = [
   { path: 'login', component: LoginComponent, canActivate: [guestGuard] },
@@ -28,6 +30,7 @@ export const routes: Routes = [
   { path: 'debtors', component: DebtorsComponent, canActivate: [authGuard] },
   { path: 'investments', component: InvestmentsComponent, canActivate: [authGuard] },
   { path: 'family', component: FamilyMembersComponent, canActivate: [authGuard] },
-  { path: 'admin/users', component: AdminUsersComponent, canActivate: [authGuard] },
+  { path: 'reports', component: ReportsComponent, canActivate: [authGuard] },
+  { path: 'admin/users', component: AdminUsersComponent, canActivate: [authGuard, adminGuard] },
   { path: '', redirectTo: '/login', pathMatch: 'full' }
 ];

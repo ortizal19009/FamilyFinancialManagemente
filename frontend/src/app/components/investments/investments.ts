@@ -2,23 +2,35 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-import { ApiService } from '../../services/api.service';
+import { ApiService, PaginatedResult } from '../../services/api.service';
+import { ConfirmService } from '../../services/confirm.service';
+import { AppPaginationComponent } from '../shared/pagination/pagination';
 
 @Component({
   selector: 'app-investments',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, AppPaginationComponent],
   templateUrl: './investments.html',
   styleUrl: './investments.scss'
 })
 export class InvestmentsComponent implements OnInit {
   private apiService = inject(ApiService);
+  private confirmService = inject(ConfirmService);
 
   investments: any[] = [];
   loading = false;
+  loadingList = false;
   successMsg = '';
   errorMsg = '';
   editingInvestmentId: number | null = null;
+
+  searchText = '';
+  page = 1;
+  perPage = 8;
+  totalItems = 0;
+  totalPages = 0;
+
+  private searchTimer: ReturnType<typeof setTimeout> | null = null;
 
   formInvestment = this.createEmptyInvestment();
 
@@ -27,9 +39,46 @@ export class InvestmentsComponent implements OnInit {
   }
 
   loadInvestments() {
-    this.apiService.getInvestments().subscribe(data => {
-      this.investments = data;
+    this.loadingList = true;
+    this.apiService.getInvestments({
+      search: this.searchText || undefined,
+      page: this.page,
+      per_page: this.perPage,
+    }).subscribe({
+      next: (data) => {
+        if (Array.isArray(data)) {
+          this.investments = data;
+          this.totalItems = data.length;
+          this.totalPages = data.length > 0 ? 1 : 0;
+        } else {
+          this.investments = data.items;
+          this.totalItems = data.total;
+          this.totalPages = data.pages;
+        }
+        this.loadingList = false;
+      },
+      error: () => {
+        this.investments = [];
+        this.totalItems = 0;
+        this.totalPages = 0;
+        this.loadingList = false;
+      }
     });
+  }
+
+  onSearchInput() {
+    if (this.searchTimer) {
+      clearTimeout(this.searchTimer);
+    }
+    this.searchTimer = setTimeout(() => {
+      this.page = 1;
+      this.loadInvestments();
+    }, 350);
+  }
+
+  goToPage(target: number) {
+    this.page = target;
+    this.loadInvestments();
   }
 
   onSubmit() {
@@ -74,24 +123,29 @@ export class InvestmentsComponent implements OnInit {
   }
 
   onDelete(investment: any) {
-    const confirmed = window.confirm(`¿Deseas eliminar la inversión "${investment.title}"?`);
-    if (!confirmed) {
-      return;
-    }
-
-    this.apiService.deleteInvestment(investment.id).subscribe({
-      next: () => {
-        this.successMsg = 'Inversión eliminada correctamente';
-        if (this.editingInvestmentId === investment.id) {
-          this.resetForm();
-        }
-        this.loadInvestments();
-        setTimeout(() => this.successMsg = '', 3000);
-      },
-      error: (error) => {
-        this.errorMsg = error?.error?.msg || 'Error al eliminar la inversión';
-        setTimeout(() => this.errorMsg = '', 3000);
+    this.confirmService.confirm({
+      title: 'Eliminar inversión',
+      message: `¿Deseas eliminar la inversión "${investment.title}"?`,
+      confirmLabel: 'Eliminar'
+    }).subscribe(confirmed => {
+      if (!confirmed) {
+        return;
       }
+
+      this.apiService.deleteInvestment(investment.id).subscribe({
+        next: () => {
+          this.successMsg = 'Inversión eliminada correctamente';
+          if (this.editingInvestmentId === investment.id) {
+            this.resetForm();
+          }
+          this.loadInvestments();
+          setTimeout(() => this.successMsg = '', 3000);
+        },
+        error: (error) => {
+          this.errorMsg = error?.error?.msg || 'Error al eliminar la inversión';
+          setTimeout(() => this.errorMsg = '', 3000);
+        }
+      });
     });
   }
 

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { ApiService } from '../../services/api.service';
+import { ConfirmService } from '../../services/confirm.service';
 
 @Component({
   selector: 'app-banks',
@@ -13,6 +14,7 @@ import { ApiService } from '../../services/api.service';
 })
 export class BanksComponent implements OnInit {
   private apiService = inject(ApiService);
+  private confirmService = inject(ConfirmService);
 
   banks: any[] = [];
   accounts: any[] = [];
@@ -117,27 +119,32 @@ export class BanksComponent implements OnInit {
   }
 
   onDeleteBank(bank: any) {
-    const confirmed = window.confirm(`¿Deseas eliminar el banco "${bank.name}"?`);
-    if (!confirmed) {
-      return;
-    }
-
-    this.deletingBankId = bank.id;
-    this.apiService.deleteBank(bank.id).subscribe({
-      next: () => {
-        this.successMsg = 'Banco eliminado correctamente';
-        if (this.editingBankId === bank.id) {
-          this.cancelEditBank();
-        }
-        this.loadData();
-        this.deletingBankId = null;
-        setTimeout(() => this.successMsg = '', 3000);
-      },
-      error: (error) => {
-        this.errorMsg = error?.error?.msg || 'Error al eliminar el banco';
-        this.deletingBankId = null;
-        setTimeout(() => this.errorMsg = '', 4000);
+    this.confirmService.confirm({
+      title: 'Eliminar banco',
+      message: `¿Deseas eliminar el banco "${bank.name}"?`,
+      confirmLabel: 'Eliminar'
+    }).subscribe(confirmed => {
+      if (!confirmed) {
+        return;
       }
+
+      this.deletingBankId = bank.id;
+      this.apiService.deleteBank(bank.id).subscribe({
+        next: () => {
+          this.successMsg = 'Banco eliminado correctamente';
+          if (this.editingBankId === bank.id) {
+            this.cancelEditBank();
+          }
+          this.loadData();
+          this.deletingBankId = null;
+          setTimeout(() => this.successMsg = '', 3000);
+        },
+        error: (error) => {
+          this.errorMsg = error?.error?.msg || 'Error al eliminar el banco';
+          this.deletingBankId = null;
+          setTimeout(() => this.errorMsg = '', 4000);
+        }
+      });
     });
   }
 
@@ -204,27 +211,32 @@ export class BanksComponent implements OnInit {
   }
 
   onDeleteAccount(account: any) {
-    const confirmed = window.confirm(`¿Deseas cerrar la cuenta ${account.account_number}?`);
-    if (!confirmed) {
-      return;
-    }
-
-    this.deletingAccountId = account.id;
-    this.apiService.deleteBankAccount(account.id).subscribe({
-      next: () => {
-        this.successMsg = 'Cuenta cerrada correctamente';
-        if (this.editingAccountId === account.id) {
-          this.cancelEditAccount();
-        }
-        this.loadData();
-        this.deletingAccountId = null;
-        setTimeout(() => this.successMsg = '', 3000);
-      },
-      error: (error) => {
-        this.errorMsg = error?.error?.msg || 'Error al cerrar la cuenta';
-        this.deletingAccountId = null;
-        setTimeout(() => this.errorMsg = '', 4000);
+    this.confirmService.confirm({
+      title: 'Cerrar cuenta',
+      message: `¿Deseas cerrar la cuenta ${account.account_number}?`,
+      confirmLabel: 'Cerrar cuenta'
+    }).subscribe(confirmed => {
+      if (!confirmed) {
+        return;
       }
+
+      this.deletingAccountId = account.id;
+      this.apiService.deleteBankAccount(account.id).subscribe({
+        next: () => {
+          this.successMsg = 'Cuenta cerrada correctamente';
+          if (this.editingAccountId === account.id) {
+            this.cancelEditAccount();
+          }
+          this.loadData();
+          this.deletingAccountId = null;
+          setTimeout(() => this.successMsg = '', 3000);
+        },
+        error: (error) => {
+          this.errorMsg = error?.error?.msg || 'Error al cerrar la cuenta';
+          this.deletingAccountId = null;
+          setTimeout(() => this.errorMsg = '', 4000);
+        }
+      });
     });
   }
 }

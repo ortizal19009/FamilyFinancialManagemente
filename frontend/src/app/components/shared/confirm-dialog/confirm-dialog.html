@@ -1,0 +1,25 @@
+<div class="confirm-overlay">
+  <div class="confirm-dialog shadow-lg">
+    <div class="confirm-header">
+      <i class="bi bi-exclamation-triangle-fill me-2"></i>
+      {{ options().title || 'Confirmar acción' }}
+    </div>
+    <div class="confirm-body">
+      {{ options().message }}
+    </div>
+    <div class="confirm-actions">
+      <button type="button" class="btn btn-sm btn-outline-secondary px-4" (click)="onCancel()">
+        {{ options().cancelLabel || 'Cancelar' }}
+      </button>
+      <button
+        type="button"
+        class="btn btn-sm px-4"
+        [class.btn-danger]="options().danger !== false"
+        [class.btn-primary]="options().danger === false"
+        (click)="onConfirm()"
+      >
+        {{ options().confirmLabel || 'Confirmar' }}
+      </button>
+    </div>
+  </div>
+</div>

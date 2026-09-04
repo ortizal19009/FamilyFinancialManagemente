@@ -1,17 +1,20 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ApiService } from '../../services/api.service';
+import { ApiService, PaginatedResult } from '../../services/api.service';
+import { ConfirmService } from '../../services/confirm.service';
+import { AppPaginationComponent } from '../shared/pagination/pagination';
 
 @Component({
   selector: 'app-cards-loans',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AppPaginationComponent],
   templateUrl: './cards-loans.html',
   styleUrl: './cards-loans.scss'
 })
 export class CardsLoansComponent implements OnInit {
   private apiService = inject(ApiService);
+  private confirmService = inject(ConfirmService);
 
   cards: any[] = [];
   loans: any[] = [];
@@ -19,6 +22,23 @@ export class CardsLoansComponent implements OnInit {
   familyMembers: any[] = [];
   editingCardId: number | null = null;
   editingLoanId: number | null = null;
+
+  cardsSearch = '';
+  cardsPage = 1;
+  cardsPerPage = 8;
+  cardsTotal = 0;
+  cardsPages = 0;
+  loadingCards = false;
+
+  loansSearch = '';
+  loansPage = 1;
+  loansPerPage = 8;
+  loansTotal = 0;
+  loansPages = 0;
+  loadingLoans = false;
+
+  private cardsSearchTimer: ReturnType<typeof setTimeout> | null = null;
+  private loansSearchTimer: ReturnType<typeof setTimeout> | null = null;
 
   newCard = {
     bank_id: null,
@@ -53,10 +73,93 @@ export class CardsLoansComponent implements OnInit {
   }
 
   loadData() {
-    this.apiService.getCards().subscribe(data => this.cards = data);
-    this.apiService.getLoans().subscribe(data => this.loans = data);
+    this.loadCards();
+    this.loadLoans();
     this.apiService.getBanks().subscribe(data => this.banks = data);
     this.apiService.getFamilyMembers().subscribe(data => this.familyMembers = data);
+  }
+
+  private applyPageResult<T>(data: any[] | PaginatedResult<T>, setter: (items: T[]) => void): { total: number; pages: number } {
+    if (Array.isArray(data)) {
+      setter(data);
+      return { total: data.length, pages: data.length > 0 ? 1 : 0 };
+    }
+    setter(data.items);
+    return { total: data.total, pages: data.pages };
+  }
+
+  loadCards() {
+    this.loadingCards = true;
+    this.apiService.getCards({
+      search: this.cardsSearch || undefined,
+      page: this.cardsPage,
+      per_page: this.cardsPerPage,
+    }).subscribe({
+      next: (data) => {
+        const result = this.applyPageResult(data, items => this.cards = items);
+        this.cardsTotal = result.total;
+        this.cardsPages = result.pages;
+        this.loadingCards = false;
+      },
+      error: () => {
+        this.cards = [];
+        this.cardsTotal = 0;
+        this.cardsPages = 0;
+        this.loadingCards = false;
+      }
+    });
+  }
+
+  loadLoans() {
+    this.loadingLoans = true;
+    this.apiService.getLoans({
+      search: this.loansSearch || undefined,
+      page: this.loansPage,
+      per_page: this.loansPerPage,
+    }).subscribe({
+      next: (data) => {
+        const result = this.applyPageResult(data, items => this.loans = items);
+        this.loansTotal = result.total;
+        this.loansPages = result.pages;
+        this.loadingLoans = false;
+      },
+      error: () => {
+        this.loans = [];
+        this.loansTotal = 0;
+        this.loansPages = 0;
+        this.loadingLoans = false;
+      }
+    });
+  }
+
+  onSearchCardsInput() {
+    if (this.cardsSearchTimer) {
+      clearTimeout(this.cardsSearchTimer);
+    }
+    this.cardsSearchTimer = setTimeout(() => {
+      this.cardsPage = 1;
+      this.loadCards();
+    }, 350);
+  }
+
+  onSearchLoansInput() {
+    if (this.loansSearchTimer) {
+      clearTimeout(this.loansSearchTimer);
+    }
+    this.loansSearchTimer = setTimeout(() => {
+      this.loansPage = 1;
+      this.loadLoans();
+    }, 350);
+  }
+
+  goToCardsPage(page: number) {
+    this.cardsPage = page;
+    this.loadCards();
+  }
+
+  goToLoansPage(page: number) {
+    this.loansPage = page;
+    this.loadLoans();
   }
 
   onSubmitCard() {
@@ -126,23 +229,32 @@ export class CardsLoansComponent implements OnInit {
   }
 
   onDeleteCard(card: any) {
-    if (!confirm(`¿Deseas eliminar la tarjeta "${card.card_name}"?`)) {
-      return;
-    }
-
-    this.apiService.deleteCard(card.id).subscribe({
-      next: () => {
-        if (this.editingCardId === card.id) {
-          this.resetCardForm();
-        }
-        this.successMsg = 'Tarjeta eliminada correctamente';
-        this.loadData();
-        setTimeout(() => this.successMsg = '', 3000);
-      },
-      error: () => {
-        this.errorMsg = 'Error al eliminar la tarjeta';
-        setTimeout(() => this.errorMsg = '', 3000);
+    this.confirmService.confirm({
+      title: 'Eliminar tarjeta',
+      message: `¿Deseas eliminar la tarjeta "${card.card_name}"?`,
+      confirmLabel: 'Eliminar'
+    }).subscribe(confirmed => {
+      if (!confirmed) {
+        return;
       }
+
+      this.apiService.deleteCard(card.id).subscribe({
+        next: () => {
+          if (this.editingCardId === card.id) {
+            this.resetCardForm();
+          }
+          this.successMsg = 'Tarjeta eliminada correctamente';
+          if (this.cards.length === 1 && this.cardsPage > 1) {
+            this.cardsPage -= 1;
+          }
+          this.loadCards();
+          setTimeout(() => this.successMsg = '', 3000);
+        },
+        error: () => {
+          this.errorMsg = 'Error al eliminar la tarjeta';
+          setTimeout(() => this.errorMsg = '', 3000);
+        }
+      });
     });
   }
 
@@ -162,23 +274,32 @@ export class CardsLoansComponent implements OnInit {
   }
 
   onDeleteLoan(loan: any) {
-    if (!confirm(`¿Deseas eliminar el préstamo "${loan.description}"?`)) {
-      return;
-    }
-
-    this.apiService.deleteLoan(loan.id).subscribe({
-      next: () => {
-        if (this.editingLoanId === loan.id) {
-          this.resetLoanForm();
-        }
-        this.successMsg = 'Préstamo eliminado correctamente';
-        this.loadData();
-        setTimeout(() => this.successMsg = '', 3000);
-      },
-      error: () => {
-        this.errorMsg = 'Error al eliminar el préstamo';
-        setTimeout(() => this.errorMsg = '', 3000);
+    this.confirmService.confirm({
+      title: 'Eliminar préstamo',
+      message: `¿Deseas eliminar el préstamo "${loan.description}"?`,
+      confirmLabel: 'Eliminar'
+    }).subscribe(confirmed => {
+      if (!confirmed) {
+        return;
       }
+
+      this.apiService.deleteLoan(loan.id).subscribe({
+        next: () => {
+          if (this.editingLoanId === loan.id) {
+            this.resetLoanForm();
+          }
+          this.successMsg = 'Préstamo eliminado correctamente';
+          if (this.loans.length === 1 && this.loansPage > 1) {
+            this.loansPage -= 1;
+          }
+          this.loadLoans();
+          setTimeout(() => this.successMsg = '', 3000);
+        },
+        error: () => {
+          this.errorMsg = 'Error al eliminar el préstamo';
+          setTimeout(() => this.errorMsg = '', 3000);
+        }
+      });
     });
   }
 

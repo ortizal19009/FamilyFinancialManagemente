@@ -8,6 +8,11 @@ try:
 except ModuleNotFoundError:
     from models import Investment, User, db
 
+try:
+    from backend.query_helpers import apply_search, paginate_or_plain
+except ModuleNotFoundError:
+    from query_helpers import apply_search, paginate_or_plain
+
 investments_bp = Blueprint('investments', __name__)
 
 
@@ -44,12 +49,16 @@ def get_investments():
     if not user:
       return jsonify({'msg': 'User not found'}), 404
 
-    query = Investment.query.order_by(Investment.created_at.desc())
+    query = Investment.query
     if user.role != 'admin':
         query = query.filter_by(user_id=user_id)
+    query = apply_search(query, Investment.title, Investment.institution, Investment.investment_type, Investment.owner)
+    query = query.order_by(Investment.created_at.desc())
 
-    investments = query.all()
-    return jsonify([_serialize_investment(item) for item in investments]), 200
+    items, meta = paginate_or_plain(query, lambda investments: [_serialize_investment(item) for item in investments])
+    if meta is None:
+        return jsonify(items), 200
+    return jsonify({"items": items, **meta}), 200
 
 
 @investments_bp.route('/', methods=['POST'])

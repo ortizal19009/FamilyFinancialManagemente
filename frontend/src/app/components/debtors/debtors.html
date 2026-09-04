@@ -107,8 +107,13 @@
           </div>
 
           <div class="card border-0 shadow-sm">
-            <div class="card-header bg-white py-3 border-0">
+            <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
               <h6 class="mb-0 fw-bold text-secondary">Listado de Deudores</h6>
+              <div class="input-group input-group-sm" style="max-width: 220px;">
+                <span class="input-group-text bg-light border-0"><i class="bi bi-search"></i></span>
+                <input type="text" class="form-control form-control-sm bg-light border-0"
+                       placeholder="Buscar deudor..." [(ngModel)]="debtorsSearch" (input)="onSearchDebtorsInput()">
+              </div>
             </div>
             <div class="card-body p-0">
               <div class="table-responsive">
@@ -146,11 +151,20 @@
                         </button>
                       </td>
                     </tr>
-                    <tr *ngIf="debtors.length === 0">
+                    <tr *ngIf="loadingDebtors">
+                      <td colspan="6" class="text-center py-4 text-muted">
+                        <span class="spinner-border spinner-border-sm me-2"></span> Cargando deudores...
+                      </td>
+                    </tr>
+                    <tr *ngIf="debtors.length === 0 && !loadingDebtors">
                       <td colspan="6" class="text-center py-5 text-muted">No hay registros de personas que deban dinero</td>
                     </tr>
                   </tbody>
                 </table>
+              </div>
+              <div class="px-4 py-3 border-top" *ngIf="!loadingDebtors">
+                <app-pagination [page]="debtorsPage" [totalPages]="debtorsPages" [totalItems]="debtorsTotal"
+                                (pageChange)="goToDebtorsPage($event)"></app-pagination>
               </div>
             </div>
           </div>
@@ -240,8 +254,13 @@
           </div>
 
           <div class="card border-0 shadow-sm">
-            <div class="card-header bg-white py-3 border-0">
+            <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
               <h6 class="mb-0 fw-bold text-secondary">Listado de Deudas Pequeñas</h6>
+              <div class="input-group input-group-sm" style="max-width: 220px;">
+                <span class="input-group-text bg-light border-0"><i class="bi bi-search"></i></span>
+                <input type="text" class="form-control form-control-sm bg-light border-0"
+                       placeholder="Buscar deuda..." [(ngModel)]="smallDebtsSearch" (input)="onSearchSmallDebtsInput()">
+              </div>
             </div>
             <div class="card-body p-0">
               <div class="table-responsive">
@@ -281,11 +300,20 @@
                         </button>
                       </td>
                     </tr>
-                    <tr *ngIf="smallDebts.length === 0">
+                    <tr *ngIf="loadingSmallDebtsList">
+                      <td colspan="7" class="text-center py-4 text-muted">
+                        <span class="spinner-border spinner-border-sm me-2"></span> Cargando deudas...
+                      </td>
+                    </tr>
+                    <tr *ngIf="smallDebts.length === 0 && !loadingSmallDebtsList">
                       <td colspan="7" class="text-center py-5 text-muted">No hay deudas pequeñas registradas</td>
                     </tr>
                   </tbody>
                 </table>
+              </div>
+              <div class="px-4 py-3 border-top" *ngIf="!loadingSmallDebtsList">
+                <app-pagination [page]="smallDebtsPage" [totalPages]="smallDebtsPages" [totalItems]="smallDebtsTotal"
+                                (pageChange)="goToSmallDebtsPage($event)"></app-pagination>
               </div>
             </div>
           </div>

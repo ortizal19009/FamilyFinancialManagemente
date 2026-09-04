@@ -1,8 +1,10 @@
 from datetime import date, datetime
 from decimal import Decimal
-from io import BytesIO
+from io import BytesIO, StringIO
+import csv
 import unicodedata
 import xml.etree.ElementTree as ET
+import zipfile
 
 from flask import Blueprint, jsonify, request, send_file
 from flask_jwt_extended import get_jwt_identity, jwt_required
@@ -12,14 +14,17 @@ from sqlalchemy.orm import joinedload
 try:
     from backend.models import (
         Asset,
+        AuditLog,
         Bank,
         BankAccount,
         Card,
+        CardPayment,
         Category,
         Expense,
         Income,
         Investment,
         Loan,
+        LoanPayment,
         MonthlyPlanning,
         SmallDebt,
         Debtor,
@@ -29,14 +34,17 @@ try:
 except ModuleNotFoundError:
     from models import (
         Asset,
+        AuditLog,
         Bank,
         BankAccount,
         Card,
+        CardPayment,
         Category,
         Expense,
         Income,
         Investment,
         Loan,
+        LoanPayment,
         MonthlyPlanning,
         SmallDebt,
         Debtor,
@@ -46,8 +54,32 @@ except ModuleNotFoundError:
 
 reports_bp = Blueprint('reports', __name__)
 
-SUPPORTED_REPORTS = {'summary', 'movements', 'accounts', 'expenses', 'planning'}
-SUPPORTED_FORMATS = {'pdf', 'xml'}
+SUPPORTED_REPORTS = {
+    'summary',
+    'movements',
+    'accounts',
+    'expenses',
+    'planning',
+    'expenses-category',
+    'cards',
+    'loans',
+    'investments',
+    'assets',
+    'debts',
+    'net-worth',
+    'audit',
+}
+SUPPORTED_FORMATS = {'pdf', 'xml', 'csv', 'xlsx'}
+TABULAR_REPORTS = {
+    'expenses-category',
+    'cards',
+    'loans',
+    'investments',
+    'assets',
+    'debts',
+    'net-worth',
+    'audit',
+}
 
 
 def _parse_iso_date(raw_value, field_name):
@@ -144,6 +176,20 @@ def _card_query_for_user(user):
     return query
 
 
+def _account_query_for_user(user):
+    query = BankAccount.query.options(joinedload(BankAccount.bank))
+    if user.role != 'admin':
+        query = query.filter(BankAccount.user_id == user.id)
+    return query
+
+
+def _asset_query_for_user(user):
+    query = Asset.query
+    if user.role != 'admin':
+        query = query.filter(Asset.user_id == user.id)
+    return query
+
+
 def _loan_query_for_user(user):
     query = Loan.query.options(joinedload(Loan.bank), joinedload(Loan.user))
     if user.role != 'admin':
@@ -172,6 +218,28 @@ def _small_debt_query_for_user(user):
     return query
 
 
+def _card_payment_query_for_user(user):
+    query = CardPayment.query.options(
+        joinedload(CardPayment.user),
+        joinedload(CardPayment.card),
+        joinedload(CardPayment.account),
+    )
+    if user.role != 'admin':
+        query = query.filter(CardPayment.user_id == user.id)
+    return query
+
+
+def _loan_payment_query_for_user(user):
+    query = LoanPayment.query.options(
+        joinedload(LoanPayment.user),
+        joinedload(LoanPayment.loan),
+        joinedload(LoanPayment.account),
+    )
+    if user.role != 'admin':
+        query = query.filter(LoanPayment.user_id == user.id)
+    return query
+
+
 def _apply_date_range(query, column, filters):
     if filters.get('date_from'):
         query = query.filter(column >= filters['date_from'])
@@ -182,8 +250,12 @@ def _apply_date_range(query, column, filters):
 
 def _build_summary_report(user, filters):
     today = date.today()
-    account_balance = db.session.query(func.coalesce(func.sum(BankAccount.current_balance), 0)).scalar() or 0
-    total_assets = db.session.query(func.coalesce(func.sum(Asset.value), 0)).scalar() or 0
+    account_balance = _account_query_for_user(user).with_entities(
+        func.coalesce(func.sum(BankAccount.current_balance), 0)
+    ).scalar() or 0
+    total_assets = _asset_query_for_user(user).with_entities(
+        func.coalesce(func.sum(Asset.value), 0)
+    ).scalar() or 0
     total_debt = _card_query_for_user(user).with_entities(func.coalesce(func.sum(Card.current_debt), 0)).scalar() or 0
     investments_aggregate = _investment_query_for_user(user).with_entities(
         func.coalesce(func.sum(Investment.invested_amount), 0),
@@ -216,10 +288,10 @@ def _build_summary_report(user, filters):
         },
         'counts': {
             'banks': Bank.query.count(),
-            'accounts': BankAccount.query.count(),
+            'accounts': _account_query_for_user(user).count(),
             'cards': _card_query_for_user(user).count(),
             'loans': _loan_query_for_user(user).count(),
-            'assets': Asset.query.count(),
+            'assets': _asset_query_for_user(user).count(),
             'income_records': _income_query_for_user(user).count(),
             'expenses': _expense_query_for_user(user).count(),
             'plans': MonthlyPlanning.query.count(),
@@ -302,7 +374,7 @@ def _build_movements_report(user, filters):
 
 def _build_accounts_report(user, filters):
     banks = Bank.query.order_by(Bank.name.asc()).all()
-    accounts = BankAccount.query.options(joinedload(BankAccount.bank)).order_by(BankAccount.created_at.desc()).all()
+    accounts = _account_query_for_user(user).order_by(BankAccount.created_at.desc()).all()
     cards = _card_query_for_user(user).order_by(Card.created_at.desc()).all()
     loans = _loan_query_for_user(user).order_by(Loan.created_at.desc()).all()
 
@@ -476,6 +548,443 @@ def _build_planning_report(user, filters):
     }
 
 
+def _table(name, columns, rows):
+    return {'name': name, 'columns': columns, 'rows': rows}
+
+
+def _build_expenses_category_report(user, filters):
+    expenses = _apply_date_range(
+        _expense_query_for_user(user),
+        Expense.expense_date,
+        filters,
+    ).order_by(Expense.expense_date.desc(), Expense.created_at.desc()).all()
+
+    totals_by_category = {}
+    for item in expenses:
+        category_name = item.category.name if item.category else 'Sin categoría'
+        totals_by_category[category_name] = totals_by_category.get(category_name, 0.0) + _to_float(item.amount)
+
+    ordered = sorted(totals_by_category.items(), key=lambda entry: entry[1], reverse=True)
+    grand_total = sum(amount for _, amount in ordered)
+    category_rows = [
+        [
+            category_name,
+            amount,
+            f'{((amount / grand_total) * 100) if grand_total else 0.0:.2f}%',
+        ]
+        for category_name, amount in ordered
+    ]
+    detail_rows = [
+        [
+            _format_date(item.expense_date),
+            item.category.name if item.category else 'Sin categoría',
+            item.description or '',
+            item.payment_method,
+            _to_float(item.amount),
+        ]
+        for item in expenses
+    ]
+
+    return {
+        'title': 'Reporte de Gastos por Categoría',
+        'generated_at': datetime.utcnow().isoformat(),
+        'scope_user': user.full_name,
+        'scope_role': user.role,
+        'filters': filters,
+        'summary': {
+            'records': len(expenses),
+            'total_amount': grand_total,
+        },
+        'tables': [
+            _table('Totales por Categoría', ['Categoría', 'Monto', 'Porcentaje'], category_rows),
+            _table('Detalle de Gastos', ['Fecha', 'Categoría', 'Descripción', 'Método de pago', 'Monto'], detail_rows),
+        ],
+    }
+
+
+def _build_cards_report(user, filters):
+    cards = _card_query_for_user(user).order_by(Card.created_at.desc()).all()
+    total_debt = sum(_to_float(card.current_debt) for card in cards)
+    total_available = sum(_to_float(card.available_balance) for card in cards)
+
+    card_rows = [
+        [
+            card.card_name or '',
+            card.card_type or '',
+            card.owner or '',
+            card.bank.name if card.bank else '',
+            (
+                f"{card.bank_account.bank.name} - {card.bank_account.account_number}"
+                if card.bank_account and card.bank_account.bank
+                else ''
+            ),
+            _to_float(card.credit_limit),
+            _to_float(card.current_debt),
+            _to_float(card.available_balance),
+        ]
+        for card in cards
+    ]
+
+    payments = _apply_date_range(
+        _card_payment_query_for_user(user),
+        CardPayment.payment_date,
+        filters,
+    ).order_by(CardPayment.payment_date.desc(), CardPayment.created_at.desc()).all()
+    payment_rows = [
+        [
+            _format_date(payment.payment_date),
+            payment.card.card_name if payment.card else '',
+            payment.user.full_name if payment.user else '',
+            _to_float(payment.amount),
+            payment.status or '',
+        ]
+        for payment in payments
+    ]
+
+    return {
+        'title': 'Reporte de Tarjetas',
+        'generated_at': datetime.utcnow().isoformat(),
+        'scope_user': user.full_name,
+        'scope_role': user.role,
+        'filters': filters,
+        'summary': {
+            'total_debt': total_debt,
+            'total_available': total_available,
+        },
+        'tables': [
+            _table(
+                'Tarjetas',
+                ['Tarjeta', 'Tipo', 'Titular', 'Banco', 'Cuenta', 'Límite', 'Deuda', 'Disponible'],
+                card_rows,
+            ),
+            _table(
+                'Pagos de Tarjetas',
+                ['Fecha', 'Tarjeta', 'Usuario', 'Monto', 'Estado'],
+                payment_rows,
+            ),
+        ],
+    }
+
+
+def _loan_remaining_balance(loan):
+    paid_principal = LoanPayment.query.with_entities(
+        func.coalesce(func.sum(LoanPayment.principal_paid), 0),
+    ).filter(
+        LoanPayment.loan_id == loan.id,
+        LoanPayment.status == 'ACTIVO',
+    ).scalar() or 0
+    return max(0.0, _to_float(loan.initial_amount) - _to_float(paid_principal))
+
+
+def _build_loans_report(user, filters):
+    loans = _loan_query_for_user(user).order_by(Loan.created_at.desc()).all()
+    total_remaining = 0.0
+    loan_rows = []
+    for loan in loans:
+        remaining = _loan_remaining_balance(loan)
+        total_remaining += remaining
+        loan_rows.append([
+            loan.description or '',
+            loan.owner or '',
+            loan.bank.name if loan.bank else '',
+            _to_float(loan.initial_amount),
+            _to_float(loan.monthly_payment),
+            loan.pending_installments,
+            loan.total_installments,
+            remaining,
+            _format_date(loan.start_date),
+        ])
+
+    payments = _apply_date_range(
+        _loan_payment_query_for_user(user),
+        LoanPayment.payment_date,
+        filters,
+    ).order_by(LoanPayment.payment_date.desc(), LoanPayment.created_at.desc()).all()
+    payment_rows = [
+        [
+            _format_date(payment.payment_date),
+            payment.loan.description if payment.loan else '',
+            _to_float(payment.principal_paid),
+            _to_float(payment.interest_paid),
+            _to_float(payment.amount),
+            _to_float(payment.balance_after),
+            payment.status or '',
+        ]
+        for payment in payments
+    ]
+
+    return {
+        'title': 'Reporte de Préstamos',
+        'generated_at': datetime.utcnow().isoformat(),
+        'scope_user': user.full_name,
+        'scope_role': user.role,
+        'filters': filters,
+        'summary': {
+            'total_remaining': total_remaining,
+            'records': len(loans),
+        },
+        'tables': [
+            _table(
+                'Préstamos',
+                ['Descripción', 'Titular', 'Banco', 'Monto inicial', 'Cuota mensual', 'Pendientes', 'Total cuotas', 'Saldo restante', 'Inicio'],
+                loan_rows,
+            ),
+            _table(
+                'Amortización',
+                ['Fecha', 'Préstamo', 'Capital', 'Interés', 'Pago', 'Saldo después', 'Estado'],
+                payment_rows,
+            ),
+        ],
+    }
+
+
+def _build_investments_report(user, filters):
+    investments = _investment_query_for_user(user).order_by(Investment.created_at.desc()).all()
+    total_invested = sum(_to_float(item.invested_amount) for item in investments)
+    total_current = sum(_to_float(item.current_value) for item in investments)
+
+    investment_rows = [
+        [
+            item.institution or '',
+            item.investment_type or '',
+            item.title or '',
+            item.owner or '',
+            _to_float(item.invested_amount),
+            _to_float(item.current_value),
+            _to_float(item.current_value) - _to_float(item.invested_amount),
+            (
+                f'{((_to_float(item.current_value) - _to_float(item.invested_amount)) / _to_float(item.invested_amount) * 100):.2f}%'
+                if _to_float(item.invested_amount)
+                else '0.00%'
+            ),
+            item.status or '',
+            _format_date(item.start_date),
+            _format_date(item.end_date),
+        ]
+        for item in investments
+    ]
+
+    return {
+        'title': 'Reporte de Inversiones',
+        'generated_at': datetime.utcnow().isoformat(),
+        'scope_user': user.full_name,
+        'scope_role': user.role,
+        'filters': filters,
+        'summary': {
+            'total_invested': total_invested,
+            'total_current': total_current,
+            'total_profit': total_current - total_invested,
+        },
+        'tables': [
+            _table(
+                'Inversiones',
+                ['Institución', 'Tipo', 'Título', 'Titular', 'Invertido', 'Valor actual', 'Ganancia', 'Rentabilidad', 'Estado', 'Inicio', 'Vencimiento'],
+                investment_rows,
+            ),
+        ],
+    }
+
+
+def _build_assets_report(user, filters):
+    assets = _asset_query_for_user(user).order_by(Asset.created_at.desc()).all()
+    total_value = sum(_to_float(asset.value) for asset in assets)
+
+    asset_rows = [
+        [
+            asset.name or '',
+            _to_float(asset.value),
+            asset.owner or '',
+            asset.description or '',
+            _format_date(asset.purchase_date),
+        ]
+        for asset in assets
+    ]
+
+    return {
+        'title': 'Reporte de Activos',
+        'generated_at': datetime.utcnow().isoformat(),
+        'scope_user': user.full_name,
+        'scope_role': user.role,
+        'filters': filters,
+        'summary': {
+            'total_value': total_value,
+            'records': len(assets),
+        },
+        'tables': [
+            _table('Activos', ['Nombre', 'Valor', 'Titular', 'Descripción', 'Fecha de compra'], asset_rows),
+        ],
+    }
+
+
+def _build_debts_report(user, filters):
+    debtors = _debtor_query_for_user(user).filter_by(status='pendiente').order_by(Debtor.due_date.asc()).all()
+    small_debts = _small_debt_query_for_user(user).filter_by(status='pendiente').order_by(SmallDebt.due_date.asc()).all()
+    cards = _card_query_for_user(user).order_by(Card.created_at.desc()).all()
+    loans = _loan_query_for_user(user).order_by(Loan.created_at.desc()).all()
+
+    debtor_rows = [
+        [debtor.name or '', _to_float(debtor.amount_owed), _format_date(debtor.due_date), debtor.description or '']
+        for debtor in debtors
+    ]
+    small_debt_rows = [
+        [debt.lender_name or '', _to_float(debt.amount), _format_date(debt.due_date), debt.description or '']
+        for debt in small_debts
+    ]
+    card_rows = [
+        [
+            card.card_name or '',
+            card.card_type or '',
+            card.owner or '',
+            _to_float(card.current_debt),
+        ]
+        for card in cards
+        if _to_float(card.current_debt) > 0
+    ]
+    loan_rows = [
+        [
+            loan.description or '',
+            loan.owner or '',
+            _to_float(loan.monthly_payment),
+            loan.pending_installments,
+            _loan_remaining_balance(loan),
+        ]
+        for loan in loans
+    ]
+
+    total_to_collect = sum(_to_float(debtor.amount_owed) for debtor in debtors)
+    total_to_pay = (
+        sum(_to_float(debt.amount) for debt in small_debts)
+        + sum(_to_float(card.current_debt) for card in cards)
+        + sum(_loan_remaining_balance(loan) for loan in loans)
+    )
+
+    return {
+        'title': 'Reporte de Deudas',
+        'generated_at': datetime.utcnow().isoformat(),
+        'scope_user': user.full_name,
+        'scope_role': user.role,
+        'filters': filters,
+        'summary': {
+            'total_to_collect': total_to_collect,
+            'total_to_pay': total_to_pay,
+        },
+        'tables': [
+            _table('Cuentas por Cobrar (Deudores)', ['Deudor', 'Monto', 'Vence', 'Descripción'], debtor_rows),
+            _table('Micro Deudas por Pagar', ['Prestamista', 'Monto', 'Vence', 'Descripción'], small_debt_rows),
+            _table('Deuda de Tarjetas', ['Tarjeta', 'Tipo', 'Titular', 'Deuda'], card_rows),
+            _table('Deuda de Préstamos', ['Préstamo', 'Titular', 'Cuota mensual', 'Pendientes', 'Saldo restante'], loan_rows),
+        ],
+    }
+
+
+def _build_net_worth_report(user, filters):
+    account_balance = _account_query_for_user(user).with_entities(
+        func.coalesce(func.sum(BankAccount.current_balance), 0),
+    ).scalar() or 0
+    total_assets = _asset_query_for_user(user).with_entities(
+        func.coalesce(func.sum(Asset.value), 0),
+    ).scalar() or 0
+    investments_current = _investment_query_for_user(user).with_entities(
+        func.coalesce(func.sum(Investment.current_value), 0),
+    ).scalar() or 0
+    total_card_debt = _card_query_for_user(user).with_entities(
+        func.coalesce(func.sum(Card.current_debt), 0),
+    ).scalar() or 0
+    loans = _loan_query_for_user(user).all()
+    total_loan_debt = sum(_loan_remaining_balance(loan) for loan in loans)
+    small_debt_total = _small_debt_query_for_user(user).with_entities(
+        func.coalesce(func.sum(SmallDebt.amount), 0),
+    ).filter_by(status='pendiente').scalar() or 0
+
+    assets_total = _to_float(account_balance) + _to_float(total_assets) + _to_float(investments_current)
+    debts_total = _to_float(total_card_debt) + _to_float(total_loan_debt) + _to_float(small_debt_total)
+    net_worth = assets_total - debts_total
+
+    return {
+        'title': 'Reporte de Patrimonio',
+        'generated_at': datetime.utcnow().isoformat(),
+        'scope_user': user.full_name,
+        'scope_role': user.role,
+        'filters': filters,
+        'composition': [
+            ['Saldo de cuentas bancarias', _to_float(account_balance)],
+            ['Activos', _to_float(total_assets)],
+            ['Inversiones (valor actual)', _to_float(investments_current)],
+            ['Deuda de tarjetas', _to_float(total_card_debt)],
+            ['Deuda de préstamos', _to_float(total_loan_debt)],
+            ['Micro deudas por pagar', _to_float(small_debt_total)],
+        ],
+        'summary': {
+            'total_assets': assets_total,
+            'total_debt': debts_total,
+            'net_worth': net_worth,
+        },
+        'tables': [
+            _table(
+                'Composición del Patrimonio',
+                ['Concepto', 'Monto'],
+                [
+                    ['Saldo de cuentas bancarias', _to_float(account_balance)],
+                    ['Activos', _to_float(total_assets)],
+                    ['Inversiones (valor actual)', _to_float(investments_current)],
+                    ['Deuda de tarjetas', _to_float(total_card_debt)],
+                    ['Deuda de préstamos', _to_float(total_loan_debt)],
+                    ['Micro deudas por pagar', _to_float(small_debt_total)],
+                ],
+            ),
+            _table(
+                'Resumen de Patrimonio',
+                ['Concepto', 'Monto'],
+                [
+                    ['Total activos', assets_total],
+                    ['Total deudas', debts_total],
+                    ['Patrimonio neto', net_worth],
+                ],
+            ),
+        ],
+    }
+
+
+def _build_audit_report(user, filters):
+    if user.role != 'admin':
+        raise ValueError('El reporte de auditoría requiere rol de administrador')
+
+    query = AuditLog.query.options(joinedload(AuditLog.user))
+    if filters.get('date_from'):
+        date_from = datetime.combine(filters['date_from'], datetime.min.time())
+        query = query.filter(AuditLog.created_at >= date_from)
+    if filters.get('date_to'):
+        date_to = datetime.combine(filters['date_to'], datetime.max.time())
+        query = query.filter(AuditLog.created_at <= date_to)
+
+    entries = query.order_by(AuditLog.created_at.desc()).all()
+    rows = [
+        [
+            _format_date(entry.created_at),
+            entry.user.full_name if entry.user else '',
+            entry.action or '',
+            entry.entity or '',
+            entry.entity_id or '',
+            entry.ip_address or '',
+        ]
+        for entry in entries
+    ]
+
+    return {
+        'title': 'Reporte de Auditoría',
+        'generated_at': datetime.utcnow().isoformat(),
+        'scope_user': user.full_name,
+        'scope_role': user.role,
+        'filters': filters,
+        'summary': {
+            'records': len(entries),
+        },
+        'tables': [
+            _table('Registro de Auditoría', ['Fecha', 'Usuario', 'Acción', 'Entidad', 'ID', 'IP'], rows),
+        ],
+    }
+
+
 def _build_report_payload(user, report_type, filters):
     builders = {
         'summary': _build_summary_report,
@@ -483,6 +992,14 @@ def _build_report_payload(user, report_type, filters):
         'accounts': _build_accounts_report,
         'expenses': _build_expenses_report,
         'planning': _build_planning_report,
+        'expenses-category': _build_expenses_category_report,
+        'cards': _build_cards_report,
+        'loans': _build_loans_report,
+        'investments': _build_investments_report,
+        'assets': _build_assets_report,
+        'debts': _build_debts_report,
+        'net-worth': _build_net_worth_report,
+        'audit': _build_audit_report,
     }
     return builders[report_type](user, filters)
 
@@ -524,6 +1041,294 @@ def _render_xml_report(report_type, payload):
     ET.indent(root, space='  ')
     xml_content = ET.tostring(root, encoding='utf-8', xml_declaration=True)
     return BytesIO(xml_content)
+
+
+def _payload_tables(report_type, payload):
+    tables = payload.get('tables')
+    if tables:
+        return tables
+
+    if report_type == 'summary':
+        return [
+            _table('Indicadores', ['Concepto', 'Valor'], [[key, value] for key, value in (payload.get('stats') or {}).items()]),
+            _table('Registros', ['Concepto', 'Cantidad'], [[key, value] for key, value in (payload.get('counts') or {}).items()]),
+            _table(
+                'Gastos recientes',
+                ['Fecha', 'Usuario', 'Descripción', 'Categoría', 'Método de pago', 'Monto'],
+                [
+                    [
+                        item['date'],
+                        item.get('user_name'),
+                        item.get('description'),
+                        item.get('category'),
+                        item.get('payment_method'),
+                        item.get('amount'),
+                    ]
+                    for item in (payload.get('recent_expenses') or [])
+                ],
+            ),
+        ]
+
+    if report_type == 'movements':
+        totals = payload.get('totals') or {}
+        return [
+            _table(
+                'Totales',
+                ['Ingresos', 'Gastos', 'Neto', 'Registros'],
+                [[totals.get('total_in'), totals.get('total_out'), totals.get('net_total'), totals.get('records')]],
+            ),
+            _table(
+                'Movimientos',
+                ['Fecha', 'Tipo', 'Detalle', 'Referencia', 'Usuario', 'Ingreso', 'Egreso', 'Neto'],
+                [
+                    [
+                        item['date'],
+                        item['movement_type'],
+                        item['detail'],
+                        item['reference'],
+                        item['user_name'],
+                        item['amount_in'],
+                        item['amount_out'],
+                        item['net_amount'],
+                    ]
+                    for item in (payload.get('items') or [])
+                ],
+            ),
+        ]
+
+    if report_type == 'accounts':
+        return [
+            _table('Bancos', ['Nombre', 'Descripción'], [[bank.get('name'), bank.get('description')] for bank in (payload.get('banks') or [])]),
+            _table(
+                'Cuentas bancarias',
+                ['Banco', 'Número', 'Tipo', 'Titular', 'Saldo'],
+                [
+                    [
+                        account.get('bank_name'),
+                        account.get('account_number'),
+                        account.get('account_type'),
+                        account.get('owner'),
+                        account.get('current_balance'),
+                    ]
+                    for account in (payload.get('accounts') or [])
+                ],
+            ),
+            _table(
+                'Tarjetas',
+                ['Tarjeta', 'Tipo', 'Titular', 'Banco', 'Cuenta', 'Límite', 'Deuda', 'Disponible'],
+                [
+                    [
+                        card.get('card_name'),
+                        card.get('card_type'),
+                        card.get('owner'),
+                        card.get('bank_name'),
+                        card.get('bank_account_name'),
+                        card.get('credit_limit'),
+                        card.get('current_debt'),
+                        card.get('available_balance'),
+                    ]
+                    for card in (payload.get('cards') or [])
+                ],
+            ),
+            _table(
+                'Préstamos',
+                ['Descripción', 'Banco', 'Titular', 'Monto inicial', 'Cuota mensual', 'Pendientes', 'Total cuotas', 'Inicio'],
+                [
+                    [
+                        loan.get('description'),
+                        loan.get('bank_name'),
+                        loan.get('owner'),
+                        loan.get('initial_amount'),
+                        loan.get('monthly_payment'),
+                        loan.get('pending_installments'),
+                        loan.get('total_installments'),
+                        loan.get('start_date'),
+                    ]
+                    for loan in (payload.get('loans') or [])
+                ],
+            ),
+        ]
+
+    if report_type == 'expenses':
+        summary = payload.get('summary') or {}
+        return [
+            _table(
+                'Resumen',
+                ['Registros', 'Total'],
+                [[summary.get('records'), summary.get('total_amount')]],
+            ),
+            _table(
+                'Totales por categoría',
+                ['Categoría', 'Monto'],
+                [[item.get('category'), item.get('amount')] for item in (payload.get('totals_by_category') or [])],
+            ),
+            _table(
+                'Detalle de gastos',
+                ['Fecha', 'Usuario', 'Descripción', 'Categoría', 'Método de pago', 'Monto', 'Tarjeta', 'Cuenta'],
+                [
+                    [
+                        item.get('date'),
+                        item.get('user_name'),
+                        item.get('description'),
+                        item.get('category'),
+                        item.get('payment_method'),
+                        item.get('amount'),
+                        item.get('card_name'),
+                        item.get('bank_account'),
+                    ]
+                    for item in (payload.get('items') or [])
+                ],
+            ),
+        ]
+
+    if report_type == 'planning':
+        summary = payload.get('summary') or {}
+        return [
+            _table(
+                'Resumen',
+                ['Presupuestado', 'Ejecutado', 'Restante', 'Registros'],
+                [[summary.get('planned_total'), summary.get('actual_total'), summary.get('remaining_total'), summary.get('records')]],
+            ),
+            _table(
+                'Detalle de planificación',
+                ['Categoría', 'Plan', 'Real', 'Restante'],
+                [
+                    [item.get('category'), item.get('planned_amount'), item.get('actual_amount'), item.get('remaining_amount')]
+                    for item in (payload.get('items') or [])
+                ],
+            ),
+        ]
+
+    return []
+
+
+def _render_csv_report(report_type, payload):
+    buffer = StringIO()
+    writer = csv.writer(buffer)
+    for table in _payload_tables(report_type, payload):
+        writer.writerow([f'# {table["name"]}'])
+        writer.writerow(table['columns'])
+        for row in table['rows']:
+            writer.writerow([cell if cell is not None else '' for cell in row])
+        writer.writerow([])
+    content = '\ufeff' + buffer.getvalue()
+    return BytesIO(content.encode('utf-8'))
+
+
+XLSX_COL_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+
+
+def _xlsx_col_ref(index):
+    letters = ''
+    value = index
+    while value > 0:
+        value, remainder = divmod(value - 1, 26)
+        letters = XLSX_COL_LETTERS[remainder] + letters
+    return letters
+
+
+def _xlsx_escape(value):
+    return str(value).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+
+def _render_xlsx_sheet_xml(table):
+    header = table['columns']
+    cell_rows = []
+    for row_index, row in enumerate([header] + [[cell if cell is not None else '' for cell in r] for r in table['rows']], start=1):
+        cells_xml = []
+        for col_index, cell in enumerate(row, start=1):
+            ref = f'{_xlsx_col_ref(col_index)}{row_index}'
+            if isinstance(cell, (int, float)) and not isinstance(cell, bool):
+                cells_xml.append(f'<c r="{ref}"><v>{cell}</v></c>')
+            else:
+                cells_xml.append(f'<c r="{ref}" t="inlineStr"><is><t>{_xlsx_escape(cell)}</t></is></c>')
+        cell_rows.append(f'<row r="{row_index}">{"".join(cells_xml)}</row>')
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        f'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        f'<sheetData>{"".join(cell_rows)}</sheetData></worksheet>'
+    )
+
+
+def _render_xlsx_report(report_type, payload):
+    tables = _payload_tables(report_type, payload)
+    seen_names = {}
+
+    def make_sheet_name(index, raw_name):
+        sanitized = ''.join(char for char in raw_name if char not in '[]:*?/\\')
+        sanitized = (sanitized or f'Hoja{index}')[:31]
+        count = seen_names.get(sanitized, 0)
+        seen_names[sanitized] = count + 1
+        if count:
+            suffix = f'_{count}'
+            sanitized = f'{sanitized[:31 - len(suffix)]}{suffix}'
+        return sanitized
+
+    sheet_names = []
+    worksheets = []
+    for index, table in enumerate(tables, start=1):
+        sheet_name = make_sheet_name(index, table['name'])
+        sheet_names.append(sheet_name)
+        worksheets.append(f'xl/worksheets/sheet{index}.xml')
+
+    output = BytesIO()
+    with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as archive:
+        content_types = [
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">',
+            '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>',
+            '<Default Extension="xml" ContentType="application/xml"/>',
+            f'<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>',
+        ]
+        for index in range(1, len(tables) + 1):
+            content_types.append(
+                f'<Override PartName="/xl/worksheets/sheet{index}.xml" '
+                'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            )
+        content_types.append('</Types>')
+        archive.writestr('[Content_Types].xml', ''.join(content_types))
+
+        archive.writestr(
+            '_rels/.rels',
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+            '</Relationships>',
+        )
+
+        sheets_xml = []
+        for index, sheet_name in enumerate(sheet_names, start=1):
+            sheets_xml.append(f'<sheet name="{_xlsx_escape(sheet_name)}" sheetId="{index}" r:id="rId{index}"/>')
+        archive.writestr(
+            'xl/workbook.xml',
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+            'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            f'<sheets>{"".join(sheets_xml)}</sheets></workbook>',
+        )
+
+        rels_xml = []
+        for index in range(1, len(tables) + 1):
+            rels_xml.append(
+                f'<Relationship Id="rId{index}" '
+                'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" '
+                f'Target="worksheets/sheet{index}.xml"/>'
+            )
+        archive.writestr(
+            'xl/_rels/workbook.xml.rels',
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            f'{"".join(rels_xml)}</Relationships>',
+        )
+
+        for index, table in enumerate(tables, start=1):
+            archive.writestr(
+                f'xl/worksheets/sheet{index}.xml',
+                _render_xlsx_sheet_xml(table),
+            )
+
+    output.seek(0)
+    return output
 
 
 def _pdf_text(value):
@@ -711,6 +1516,18 @@ def _payload_to_pdf_lines(report_type, payload):
                 f'real {_format_money(item.get("actual_amount"))}, restante {_format_money(item.get("remaining_amount"))}'
             )
 
+    if report_type in TABULAR_REPORTS:
+        for table in payload.get('tables') or []:
+            lines.append('')
+            lines.append(f'{table["name"]}:')
+            lines.append(' | '.join(table['columns']))
+            for row in table['rows']:
+                cells = [
+                    _format_money(cell) if isinstance(cell, (int, float)) and not isinstance(cell, bool) else str(cell or '')
+                    for cell in row
+                ]
+                lines.append(' | '.join(cells))
+
     return lines
 
 
@@ -733,6 +1550,12 @@ def export_report():
         if context['output_format'] == 'xml':
             file_obj = _render_xml_report(context['report_type'], payload)
             mimetype = 'application/xml'
+        elif context['output_format'] == 'csv':
+            file_obj = _render_csv_report(context['report_type'], payload)
+            mimetype = 'text/csv'
+        elif context['output_format'] == 'xlsx':
+            file_obj = _render_xlsx_report(context['report_type'], payload)
+            mimetype = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         else:
             file_obj = _render_pdf_report(context['report_type'], payload)
             mimetype = 'application/pdf'

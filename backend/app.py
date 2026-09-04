@@ -68,14 +68,15 @@ def ensure_default_admin(app):
 
 def ensure_family_schema():
     inspector = inspect(db.engine)
-    columns = {column['name'] for column in inspector.get_columns('family_members')}
-
-    if 'user_id' not in columns:
-        db.session.execute(text('ALTER TABLE family_members ADD COLUMN user_id INTEGER'))
-        db.session.commit()
-
     tables = set(inspector.get_table_names())
-    if 'family_relationships' not in tables:
+
+    if 'family_members' in tables:
+        columns = {column['name'] for column in inspector.get_columns('family_members')}
+        if 'user_id' not in columns:
+            db.session.execute(text('ALTER TABLE family_members ADD COLUMN user_id INTEGER'))
+            db.session.commit()
+
+    if 'family_relationships' not in tables and 'family_members' in tables:
         db.session.execute(text('''
             CREATE TABLE family_relationships (
                 id SERIAL PRIMARY KEY,
@@ -90,6 +91,8 @@ def ensure_family_schema():
 
 def ensure_income_schema():
     inspector = inspect(db.engine)
+    if 'income' not in inspector.get_table_names():
+        return
     columns = {column['name'] for column in inspector.get_columns('income')}
 
     if 'destination_type' not in columns:
@@ -102,6 +105,8 @@ def ensure_income_schema():
 
 def ensure_cards_schema():
     inspector = inspect(db.engine)
+    if 'cards' not in inspector.get_table_names():
+        return
     columns = {column['name'] for column in inspector.get_columns('cards')}
 
     if 'bank_account_id' not in columns:
@@ -111,6 +116,7 @@ def ensure_cards_schema():
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
+    config_class.validate_required_secrets()
 
     # Inicializar extensiones
     db.init_app(app)
@@ -143,6 +149,54 @@ def create_app(config_class=Config):
             'error': 'token_expired'
         }), 401
 
+    @app.errorhandler(SQLAlchemyError)
+    def handle_db_error(error):
+        db.session.rollback()
+        print(f"SQLAlchemyError at {request.method} {request.path}: {error}")
+        return jsonify({
+            'msg': 'Error interno de base de datos',
+            'error': 'database_error',
+        }), 500
+
+    @app.errorhandler(404)
+    def handle_not_found(error):
+        return jsonify({
+            'msg': 'Recurso no encontrado',
+            'error': 'not_found',
+        }), 404
+
+    @app.errorhandler(403)
+    def handle_forbidden(error):
+        return jsonify({
+            'msg': 'Acceso no permitido',
+            'error': 'forbidden',
+        }), 403
+
+    @app.errorhandler(405)
+    def handle_method_not_allowed(error):
+        return jsonify({
+            'msg': 'Método no permitido',
+            'error': 'method_not_allowed',
+        }), 405
+
+    @app.errorhandler(413)
+    def handle_too_large(error):
+        return jsonify({
+            'msg': 'El archivo excede el tamaño máximo permitido',
+            'error': 'file_too_large',
+        }), 413
+
+    @app.errorhandler(Exception)
+    def handle_unexpected_error(error):
+        if isinstance(error, (SQLAlchemyError,)):
+            return handle_db_error(error)
+        db.session.rollback()
+        print(f"Error inesperado at {request.method} {request.path}: {error}")
+        return jsonify({
+            'msg': 'Error interno del servidor',
+            'error': 'internal_error',
+        }), 500
+
     # Registro de Blueprints (Rutas)
     try:
         from backend.routes.auth import auth_bp
@@ -156,6 +210,9 @@ def create_app(config_class=Config):
         from backend.routes.dashboard import dashboard_bp
         from backend.routes.investments import investments_bp
         from backend.routes.reports import reports_bp
+        from backend.routes.movements import movements_bp
+        from backend.routes.audit import audit_bp
+        from backend.routes.transfers import transfers_bp
     except ModuleNotFoundError:
         from routes.auth import auth_bp
         from routes.banks import banks_bp
@@ -168,6 +225,9 @@ def create_app(config_class=Config):
         from routes.dashboard import dashboard_bp
         from routes.investments import investments_bp
         from routes.reports import reports_bp
+        from routes.movements import movements_bp
+        from routes.audit import audit_bp
+        from routes.transfers import transfers_bp
     
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(banks_bp, url_prefix='/api/banks')
@@ -180,6 +240,9 @@ def create_app(config_class=Config):
     app.register_blueprint(dashboard_bp, url_prefix='/api/dashboard')
     app.register_blueprint(investments_bp, url_prefix='/api/investments')
     app.register_blueprint(reports_bp, url_prefix='/api/reports')
+    app.register_blueprint(movements_bp, url_prefix='/api/movements')
+    app.register_blueprint(audit_bp, url_prefix='/api/audit')
+    app.register_blueprint(transfers_bp, url_prefix='/api/transfers')
 
     @app.route('/health', methods=['GET'])
     def health_check():

@@ -15,13 +15,54 @@ export interface DashboardSummary {
   recentExpenses: any[];
 }
 
+export type ReportType =
+  | 'summary'
+  | 'movements'
+  | 'accounts'
+  | 'expenses'
+  | 'planning'
+  | 'expenses-category'
+  | 'cards'
+  | 'loans'
+  | 'investments'
+  | 'assets'
+  | 'debts'
+  | 'net-worth'
+  | 'audit';
+
+export type ReportFormat = 'pdf' | 'xml' | 'csv' | 'xlsx';
+
 export interface ReportExportParams {
-  type: 'summary' | 'movements' | 'accounts' | 'expenses' | 'planning';
-  format: 'pdf' | 'xml';
+  type: ReportType;
+  format: ReportFormat;
   date_from?: string;
   date_to?: string;
   month?: number;
   year?: number;
+}
+
+export interface ExpenseListParams {
+  search?: string;
+  from?: string;
+  to?: string;
+  category_id?: number;
+  payment_method?: string;
+  page?: number;
+  per_page?: number;
+}
+
+export interface PaginatedResult<T> {
+  items: T[];
+  page: number;
+  per_page: number;
+  total: number;
+  pages: number;
+}
+
+export interface SearchPageParams {
+  search?: string;
+  page?: number;
+  per_page?: number;
 }
 
 @Injectable({
@@ -93,8 +134,56 @@ export class ApiService {
   }
 
   // --- Gastos ---
-  getExpenses(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.apiUrl}/expenses/`);
+  getExpenses(params?: ExpenseListParams): Observable<any[] | PaginatedResult<any>> {
+    return this.http.get<any[] | PaginatedResult<any>>(
+      `${this.apiUrl}/expenses/`,
+      { params: this._buildExpenseParams(params) }
+    );
+  }
+
+  private _listParams(base: HttpParams, params?: SearchPageParams): HttpParams {
+    if (!params) {
+      return base;
+    }
+    if (params.search) {
+      base = base.set('search', params.search);
+    }
+    if (params.page) {
+      base = base.set('page', params.page);
+    }
+    if (params.per_page) {
+      base = base.set('per_page', params.per_page);
+    }
+    return base;
+  }
+
+  private _buildExpenseParams(params?: ExpenseListParams): HttpParams {
+    let httpParams = new HttpParams();
+    if (!params) {
+      return httpParams;
+    }
+    if (params.search) {
+      httpParams = httpParams.set('search', params.search);
+    }
+    if (params.from) {
+      httpParams = httpParams.set('from', params.from);
+    }
+    if (params.to) {
+      httpParams = httpParams.set('to', params.to);
+    }
+    if (params.category_id) {
+      httpParams = httpParams.set('category_id', params.category_id);
+    }
+    if (params.payment_method) {
+      httpParams = httpParams.set('payment_method', params.payment_method);
+    }
+    if (params.page) {
+      httpParams = httpParams.set('page', params.page);
+    }
+    if (params.per_page) {
+      httpParams = httpParams.set('per_page', params.per_page);
+    }
+    return httpParams;
   }
 
   getCategories(): Observable<any[]> {
@@ -141,12 +230,18 @@ export class ApiService {
   }
 
   // --- Tarjetas y Préstamos ---
-  getCards(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.apiUrl}/cards_loans/cards`);
+  getCards(params?: SearchPageParams): Observable<any[] | PaginatedResult<any>> {
+    return this.http.get<any[] | PaginatedResult<any>>(
+      `${this.apiUrl}/cards_loans/cards`,
+      { params: this._listParams(new HttpParams(), params) }
+    );
   }
 
-  getLoans(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.apiUrl}/cards_loans/loans`);
+  getLoans(params?: SearchPageParams): Observable<any[] | PaginatedResult<any>> {
+    return this.http.get<any[] | PaginatedResult<any>>(
+      `${this.apiUrl}/cards_loans/loans`,
+      { params: this._listParams(new HttpParams(), params) }
+    );
   }
 
   createCard(card: any): Observable<any> {
@@ -174,12 +269,18 @@ export class ApiService {
   }
 
   // --- Activos e Ingresos ---
-  getAssets(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.apiUrl}/assets_income/assets`);
+  getAssets(params?: SearchPageParams): Observable<any[] | PaginatedResult<any>> {
+    return this.http.get<any[] | PaginatedResult<any>>(
+      `${this.apiUrl}/assets_income/assets`,
+      { params: this._listParams(new HttpParams(), params) }
+    );
   }
 
-  getIncome(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.apiUrl}/assets_income/income`);
+  getIncome(params?: SearchPageParams): Observable<any[] | PaginatedResult<any>> {
+    return this.http.get<any[] | PaginatedResult<any>>(
+      `${this.apiUrl}/assets_income/income`,
+      { params: this._listParams(new HttpParams(), params) }
+    );
   }
 
   createAsset(asset: any): Observable<any> {
@@ -207,8 +308,11 @@ export class ApiService {
   }
 
   // --- Inversiones ---
-  getInvestments(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.apiUrl}/investments/`);
+  getInvestments(params?: SearchPageParams): Observable<any[] | PaginatedResult<any>> {
+    return this.http.get<any[] | PaginatedResult<any>>(
+      `${this.apiUrl}/investments/`,
+      { params: this._listParams(new HttpParams(), params) }
+    );
   }
 
   createInvestment(investment: any): Observable<any> {
@@ -224,8 +328,11 @@ export class ApiService {
   }
 
   // --- Deudores ---
-  getDebtors(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.apiUrl}/debtors/`);
+  getDebtors(params?: SearchPageParams): Observable<any[] | PaginatedResult<any>> {
+    return this.http.get<any[] | PaginatedResult<any>>(
+      `${this.apiUrl}/debtors/`,
+      { params: this._listParams(new HttpParams(), params) }
+    );
   }
 
   createDebtor(debtor: any): Observable<any> {
@@ -240,8 +347,11 @@ export class ApiService {
     return this.http.delete(`${this.apiUrl}/debtors/${id}`);
   }
 
-  getSmallDebts(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.apiUrl}/debtors/small-debts`);
+  getSmallDebts(params?: SearchPageParams): Observable<any[] | PaginatedResult<any>> {
+    return this.http.get<any[] | PaginatedResult<any>>(
+      `${this.apiUrl}/debtors/small-debts`,
+      { params: this._listParams(new HttpParams(), params) }
+    );
   }
 
   createSmallDebt(debt: any): Observable<any> {

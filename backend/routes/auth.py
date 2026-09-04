@@ -3,8 +3,10 @@ from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identi
 
 try:
     from backend.models import db, FamilyMember, User
+    from backend.ledger import record_audit
 except ModuleNotFoundError:
     from models import db, FamilyMember, User
+    from ledger import record_audit
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -38,7 +40,7 @@ def register():
     new_user = User(
         full_name=data.get('full_name'),
         email=data['email'],
-        role=data.get('role', 'member')
+        role='member'
     )
     new_user.set_password(data['password'])
     
@@ -115,6 +117,13 @@ def admin_create_user():
     db.session.add(new_user)
     db.session.commit()
     ensure_user_family_member(new_user)
+    record_audit(
+        action='CREATE',
+        entity='user',
+        entity_id=new_user.id,
+        new_values={'email': new_user.email, 'role': new_user.role},
+        user_id=admin_id,
+    )
     return jsonify({"msg": "User created successfully", "id": new_user.id}), 201
 
 @auth_bp.route('/me', methods=['GET'])
